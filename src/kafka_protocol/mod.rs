@@ -2,7 +2,8 @@ extern crate byteorder;
 
 use self::byteorder::{BigEndian, WriteBytesExt};
 use self::ProtocolPrimitives::*;
-use std::string::ToString;
+use self::RequestMessage::*;
+use std::error::Error;
 
 /// Primitive types supported by Kafka protocol.
 /// Primarily wrapped for convenience with ProtocolSerializable.
@@ -27,9 +28,8 @@ trait ProtocolSerializable {
     fn to_protocol_bytes(&self) -> ProtocolSerializeResult;
 }
 
-pub type ProtocolSerializeResult<'a> = Result<Vec<u8>, ProtocolSerializeError<'a>>;
-
-pub struct ProtocolSerializeError<'a>(&'a str);
+pub type ProtocolSerializeResult = Result<Vec<u8>, ProtocolSerializeError>;
+pub struct ProtocolSerializeError(String);
 
 impl ProtocolSerializable for String {
     fn to_protocol_bytes(&self) -> ProtocolSerializeResult {
@@ -40,21 +40,21 @@ impl ProtocolSerializable for String {
         // i16 String Size + String byte array
         payload.write_i16::<BigEndian>(string_size);
         payload.append(&mut string_bytes);
-        Err(ProtocolSerializeError("TODO")) //payload
+        Err(ProtocolSerializeError(String::from("TODO"))) //payload
     }
 }
 
 impl ProtocolSerializable for ProtocolPrimitives {
     fn to_protocol_bytes(&self) -> ProtocolSerializeResult {
         let mut payload: Vec<u8> = vec![];
-        let serialization =
+        let serialized =
             match self {
                 &I8(i) => payload.write_i8(i),
                 &I16(i) => payload.write_i16::<BigEndian>(i),
                 &I32(i) => payload.write_i32::<BigEndian>(i)
             };
-        serialization
-            .map_err(|e| ProtocolSerializeError(&e.to_string()))
+        serialized
+            .map_err(|e| ProtocolSerializeError(String::from(e.description())))
             .map(|_| payload)
     }
 }
@@ -131,6 +131,11 @@ pub enum RequestMessage {
 
 impl ProtocolSerializable for RequestMessage {
     fn to_protocol_bytes(&self) -> ProtocolSerializeResult {
+
+        match self {
+            &MetadataRequest { ref topics } => unimplemented!()
+        }
+
         unimplemented!()
     }
 }
