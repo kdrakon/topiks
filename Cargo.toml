@@ -1,0 +1,8 @@
+[package]
+name = "topiks"
+version = "0.1.0"
+authors = ["Sean Policarpio <kdrakon@gmail.com>"]
+
+[dependencies]
+byteorder = "1.2.1"
+
