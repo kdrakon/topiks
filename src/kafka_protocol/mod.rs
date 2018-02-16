@@ -88,25 +88,18 @@ impl ProtocolSerializable for Request {
         let header = self.header;
         let request_message = self.request_message;
         let header_and_request =
-            header.into_protocol_bytes().and_then(|ref mut header|
-                match request_message.into_protocol_bytes() {
-                    Ok(ref mut request_message) => {
-                        header.append(request_message);
-                        Ok(header.clone())
-                    },
-                    Err(e) => Err(e)
-                }
+            header.into_protocol_bytes().and_then(|mut h|
+                request_message.into_protocol_bytes().map(|ref mut rm| {
+                    h.append(rm);
+                    h
+                })
             );
 
         header_and_request.and_then(|ref mut hr|
-            match I32(hr.len() as i32).into_protocol_bytes() {
-                Ok(mut message_size) => {
-                    message_size.append(hr);
-                    Ok(message_size.clone())
-                },
-                Err(e) => Err(e)
-            }
-        )
+            I32(hr.len() as i32).into_protocol_bytes().map(|mut message_size| {
+                message_size.append(hr);
+                message_size
+            }))
     }
 }
 
