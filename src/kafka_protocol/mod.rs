@@ -17,7 +17,7 @@ pub enum ProtocolPrimitives {
 /// Wrapper to a vector for convenience with
 /// ProtocolSerializable
 ///
-struct ProtocolArray<T> {
+pub struct ProtocolArray<T> {
     array: Vec<T>
 }
 
@@ -28,19 +28,16 @@ trait ProtocolSerializable {
     fn to_protocol_bytes(&self) -> ProtocolSerializeResult;
 }
 
-pub type ProtocolSerializeResult = Result<Vec<u8>, ProtocolSerializeError>;
+pub type ProtocolSerializeResult<'a> = Result<Vec<u8>, ProtocolSerializeError>;
 pub struct ProtocolSerializeError(String);
 
 impl ProtocolSerializable for String {
     fn to_protocol_bytes(&self) -> ProtocolSerializeResult {
-        let mut payload: Vec<u8> = vec![];
-        let string_size: i16 = self.len() as i16;
-        let mut string_bytes: Vec<u8> = self.as_bytes().to_vec();
-
-        // i16 String Size + String byte array
-        payload.write_i16::<BigEndian>(string_size);
-        payload.append(&mut string_bytes);
-        Err(ProtocolSerializeError(String::from("TODO"))) //payload
+        I16(self.len() as i16).to_protocol_bytes().and_then(|ref mut string_size|{
+            let mut string_bytes = self.as_bytes().to_vec();
+            string_size.append(&mut string_bytes);
+            Ok(string_size.clone())
+        })
     }
 }
 
@@ -125,8 +122,10 @@ impl ProtocolSerializable for RequestHeader {
     }
 }
 
+/// Enum of requests that can be sent to the Kafka API
+///
 pub enum RequestMessage {
-    MetadataRequest { topics: Vec<String> }
+    MetadataRequest { topics: ProtocolArray<String> }
 }
 
 impl ProtocolSerializable for RequestMessage {
