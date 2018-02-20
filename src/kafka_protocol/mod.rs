@@ -83,3 +83,38 @@ impl RequestMessage {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn verify_request() {
+        let topics = ProtocolArray::of(vec! {
+            String::from("foo")
+        });
+        let metadata_request = RequestMessage::MetadataRequest { topics, allow_auto_topic_creation: false };
+
+        let request =
+            Request {
+                header: RequestHeader {
+                    api_key: 5,
+                    api_version: 5,
+                    correlation_id: 42,
+                    client_id: String::from("sean"),
+                },
+                request_message: metadata_request,
+            };
+        assert_eq!(vec![0], request.into_protocol_bytes().unwrap());
+    }
+
+    #[test]
+    fn verify_metadata_request() {
+        let topics = ProtocolArray::of(vec! {
+            String::from("foo")
+        });
+        let metadata_request = RequestMessage::MetadataRequest { topics, allow_auto_topic_creation: true };
+        assert_eq!(vec![0, 0, 0, 1, 0, 3, 102, 111, 111, 1], metadata_request.into_protocol_bytes().unwrap());
+    }
+}

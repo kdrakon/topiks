@@ -23,6 +23,12 @@ pub struct ProtocolArray<T> {
     array: Vec<T>
 }
 
+impl<T> ProtocolArray<T> {
+    pub fn of(array: Vec<T>) -> ProtocolArray<T> {
+        ProtocolArray { array }
+    }
+}
+
 impl ProtocolSerializable for String {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
         I16(self.len() as i16).into_protocol_bytes().and_then(|mut string_size| {
