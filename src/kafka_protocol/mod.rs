@@ -6,6 +6,8 @@ use self::RequestMessage::*;
 mod protocol_primitives;
 mod protocol_serializable;
 
+type ProtocolSerializeResult = Result<Vec<u8>, ProtocolSerializeError>;
+
 /// Top-level request which can be sent to a Kafka broker.
 ///
 pub struct Request {

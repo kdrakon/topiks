@@ -6,6 +6,8 @@ use std::error::Error;
 use super::protocol_serializable::*;
 use super::protocol_serializable::ProtocolSerializeError;
 
+type ProtocolSerializeResult = Result<Vec<u8>, ProtocolSerializeError>;
+
 /// Primitive types supported by Kafka protocol.
 /// Primarily wrapped for convenience with ProtocolSerializable.
 ///
