@@ -84,3 +84,23 @@ impl<T> ProtocolSerializable for ProtocolArray<T>
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_array_and_primitives() {
+        assert_eq!(vec![0, 0, 0, 3, 1, 2, 3], ProtocolArray::of(vec![I8(1),I8(2),I8(3)]).into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 3, 0, 1, 0, 2, 0, 3], ProtocolArray::of(vec![I16(1),I16(2),I16(3)]).into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 1, 0, 0, 0, 255], ProtocolArray::of(vec![I32(255)]).into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 1, 0, 1, 0, 0], ProtocolArray::of(vec![I32(65536)]).into_protocol_bytes().unwrap());
+
+        assert_eq!(vec![0, 0, 0, 1, 1], ProtocolArray::of(vec![Boolean(true)]).into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 2, 0, 1], ProtocolArray::of(vec![Boolean(false), Boolean(true)]).into_protocol_bytes().unwrap());
+
+        // array of 2, string of 3, 3 characters, string of 3, 3 characters
+        assert_eq!(vec![0, 0, 0, 2, 0, 3, 102, 111, 111, 0, 3, 98, 97, 114],
+                   ProtocolArray::of(vec![String::from("foo"), String::from("bar")]).into_protocol_bytes().unwrap());
+    }
+}
