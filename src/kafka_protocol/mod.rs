@@ -116,9 +116,14 @@ mod tests {
     #[test]
     fn verify_metadata_request() {
         let topics = ProtocolArray::of(vec! {
-            String::from("foo")
+            String::from("my_kafka_topic_1"),
+            String::from("my_kafka_topic_2")
         });
         let metadata_request = RequestMessage::MetadataRequest { topics, allow_auto_topic_creation: true };
-//        assert_eq!(vec![0, 0, 0, 1, 0, 3, 102, 111, 111, 1], metadata_request.into_protocol_bytes().unwrap());
+        let expected: Vec<u8> = vec![0, 0, 0, 2,
+                                     0, 16, 0x6D, 0x79, 0x5F, 0x6B, 0x61, 0x66, 0x6B, 0x61, 0x5F, 0x74, 0x6F, 0x70, 0x69, 0x63, 0x5F, 0x31,
+                                     0, 16, 0x6D, 0x79, 0x5F, 0x6B, 0x61, 0x66, 0x6B, 0x61, 0x5F, 0x74, 0x6F, 0x70, 0x69, 0x63, 0x5F, 0x32,
+                                     1];
+        assert_eq!(expected, metadata_request.into_protocol_bytes().unwrap());
     }
 }
