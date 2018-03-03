@@ -1,5 +1,7 @@
 # topiks
 
+[![Build Status](https://travis-ci.org/kdrakon/topiks.svg?branch=master)](https://travis-ci.org/kdrakon/topiks)
+
 An interactive CLI tool for managing Kafka topics.
 
 ## About
