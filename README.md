@@ -11,6 +11,7 @@ Much of my time with Kafka clusters involves working directly on either brokers 
 - selectively delete topics
 - modify a topics configuration, replication factor
 - increase the partitions for a topic
+- get offset and lag for a consumer group 
 
 ## Usage
 ```bash
