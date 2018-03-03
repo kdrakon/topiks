@@ -1,8 +1,40 @@
 version: '3.3'
 
 services:
-  kafka:
-    image: landoop/fast-data-dev
+  zookeeper:
+    image: 'confluentinc/cp-zookeeper:4.0.0'
+    restart: always
+    hostname: zookeeper
     ports:
-      - 9092:9092
-      - 3030:3030
+      - "2181:2181"
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_PORT: 2181
+      ZOO_SERVERS: server.1=zookeeper:2888:3888
+      COMPONENT: zookeeper
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      TZ: Australia/Sydney
+    extra_hosts:
+      - "moby:127.0.0.1"
+
+  broker:
+    image: 'confluentinc/cp-kafka:4.0.0'
+    hostname: broker
+    stop_grace_period: 120s
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      TZ: Australia/Sydney
+      COMPONENT: kafka
+      KAFKA_BROKER_ID: 1001
+      KAFKA_RESERVED_BROKER_MAX_ID: 10000
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+    extra_hosts:
+      - "moby:127.0.0.1"
