@@ -92,25 +92,23 @@ mod tests {
 
     #[test]
     fn verify_request() {
-        let topics = ProtocolArray::of(vec! {
-            String::from("foo")
-        });
+        let topics: ProtocolArray<String> = ProtocolArray::of(vec![]);
         let metadata_request = RequestMessage::MetadataRequest { topics, allow_auto_topic_creation: false };
 
         let request =
             Request {
                 header: RequestHeader {
-                    api_key: 1001,
-                    api_version: 99,
+                    api_key: 3,
+                    api_version: 5,
                     correlation_id: 42,
                     client_id: String::from("sean"),
                 },
                 request_message: metadata_request,
             };
 
-        // 24 bytes long, 2b == 1001, 2b == 99, 4b == 42, 4 byte string == sean, 1 element array of 3 byte string == foo, 1b == false
-        assert_eq!(vec![0, 0, 0, 24, 3, 233, 0, 99, 0, 0, 0, 42, 0, 4, 115, 101, 97, 110, 0, 0, 0, 1, 0, 3, 102, 111, 111, 0],
-                   request.into_protocol_bytes().unwrap());
+        let bytes = request.into_protocol_bytes().unwrap();
+        assert_eq!(vec![0, 0, 0, 19, 0, 3, 0, 5, 0, 0, 0, 42, 0, 4, 115, 101, 97, 110, 0, 0, 0, 0, 0], bytes);
+        println!("{:?}", bytes);
     }
 
     #[test]
