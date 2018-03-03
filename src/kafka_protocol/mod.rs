@@ -63,7 +63,7 @@ impl ProtocolSerializable for RequestHeader {
 /// Enum of requests that can be sent to the Kafka API
 ///
 pub enum RequestMessage {
-    MetadataRequest { topics: ProtocolArray<String>, allow_auto_topic_creation: bool }
+    MetadataRequest { topics: Option<ProtocolArray<String>>, allow_auto_topic_creation: bool }
 }
 
 impl ProtocolSerializable for RequestMessage {
@@ -75,8 +75,14 @@ impl ProtocolSerializable for RequestMessage {
 }
 
 impl RequestMessage {
-    fn serialize_metadata_request(topics: ProtocolArray<String>, allow_auto_topic_creation: bool) -> ProtocolSerializeResult {
-        topics.into_protocol_bytes().and_then(|mut t| {
+    fn serialize_metadata_request(topics: Option<ProtocolArray<String>>, allow_auto_topic_creation: bool) -> ProtocolSerializeResult {
+        let topic_bytes =
+            match topics {
+                Some(topics) => topics.into_protocol_bytes(),
+                None => I32(-1).into_protocol_bytes()
+            };
+
+        topic_bytes.and_then(|mut t| {
             Boolean(allow_auto_topic_creation).into_protocol_bytes().map(|ref mut a| {
                 t.append(a);
                 t
@@ -91,7 +97,7 @@ mod tests {
 
     #[test]
     fn verify_request() {
-        let topics: ProtocolArray<String> = ProtocolArray::of(vec![]);
+        let topics: Option<ProtocolArray<String>> = Some(ProtocolArray::of(vec![]));
         let metadata_request = RequestMessage::MetadataRequest { topics, allow_auto_topic_creation: false };
 
         let request =
@@ -112,10 +118,10 @@ mod tests {
 
     #[test]
     fn verify_metadata_request() {
-        let topics = ProtocolArray::of(vec! {
+        let topics = Some(ProtocolArray::of(vec! {
             String::from("my_kafka_topic_1"),
             String::from("my_kafka_topic_2")
-        });
+        }));
         let metadata_request = RequestMessage::MetadataRequest { topics, allow_auto_topic_creation: true };
         let expected: Vec<u8> = vec![0, 0, 0, 2,
                                      0, 16, 0x6D, 0x79, 0x5F, 0x6B, 0x61, 0x66, 0x6B, 0x61, 0x5F, 0x74, 0x6F, 0x70, 0x69, 0x63, 0x5F, 0x31,
