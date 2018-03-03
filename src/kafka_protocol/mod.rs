@@ -1,12 +1,11 @@
 use self::protocol_primitives::*;
 use self::protocol_primitives::ProtocolPrimitives::*;
 use self::protocol_serializable::*;
+use self::protocol_serializable::ProtocolSerializeResult;
 use self::RequestMessage::*;
 
-mod protocol_primitives;
-mod protocol_serializable;
-
-type ProtocolSerializeResult = Result<Vec<u8>, ProtocolSerializeError>;
+pub mod protocol_primitives;
+pub mod protocol_serializable;
 
 /// Top-level request which can be sent to a Kafka broker.
 ///

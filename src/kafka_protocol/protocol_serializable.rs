@@ -5,7 +5,7 @@ pub trait ProtocolSerializable {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult;
 }
 
-type ProtocolSerializeResult = Result<Vec<u8>, ProtocolSerializeError>;
+pub type ProtocolSerializeResult = Result<Vec<u8>, ProtocolSerializeError>;
 
 #[derive(Debug)]
 pub struct ProtocolSerializeError(pub String);
