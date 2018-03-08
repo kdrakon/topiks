@@ -23,7 +23,7 @@ impl ProtocolDeserializable<ResponseHeader> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<ResponseHeader> {
         de_i32(self).map(|correlation_id| {
             ResponseHeader { correlation_id }
-        }).map_err(|e| ProtocolDeserializeError(String::from(e.description())))
+        })
     }
 }
 
@@ -80,9 +80,9 @@ impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
 
 impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<MetadataResponse> {
-        de_i32(self[0..3].to_vec()).and_then(|throttle_time_ms| {
-            unimplemented!()
-        });
+//        de_i32(self[0..3].to_vec()).and_then(|throttle_time_ms| {
+//            unimplemented!()
+//        });
         unimplemented!()
     }
 }
