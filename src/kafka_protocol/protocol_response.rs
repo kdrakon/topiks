@@ -1,8 +1,8 @@
 extern crate byteorder;
 
 use self::byteorder::{BigEndian, ReadBytesExt};
-use std::io::*;
 use std::error::Error;
+use std::io::*;
 use super::protocol_primitives::*;
 use super::protocol_serializable::*;
 
@@ -81,8 +81,15 @@ impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
 impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<MetadataResponse> {
 //        de_i32(self[0..3].to_vec()).and_then(|throttle_time_ms| {
+//            de_array(self[4..].to_vec(), deserialize_broker_metadata)
+//        }).and_then(|(brokers, remaining_bytes)| {
+//
 //            unimplemented!()
 //        });
         unimplemented!()
     }
+}
+
+fn deserialize_broker_metadata(bytes: Vec<u8>) -> (BrokerMetadata, Vec<u8>) {
+    unimplemented!()
 }

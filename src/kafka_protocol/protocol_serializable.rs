@@ -4,6 +4,7 @@ use self::byteorder::{BigEndian, ReadBytesExt};
 use std::error::Error;
 use std::io::Result as IOResult;
 use std::io::Cursor;
+use std::str::from_utf8;
 use super::protocol_response::*;
 
 /// If implemented, a struct/enum can be sent on the wire to a
@@ -33,7 +34,13 @@ pub fn de_i32(bytes: Vec<u8>) -> ProtocolDeserializeResult<i32> {
     Cursor::new(bytes).read_i32::<BigEndian>().map_err(|e| DeserializeError::of(e.description().to_string()))
 }
 
-pub fn de_array<T, F>(bytes: Vec<u8>, element_byte_size: usize, deserialize_t: F) -> ProtocolDeserializeResult<(Vec<T>, Vec<u8>)>
+pub fn de_i16(bytes: Vec<u8>) -> ProtocolDeserializeResult<i16> {
+    Cursor::new(bytes).read_i16::<BigEndian>().map_err(|e| DeserializeError::of(e.description().to_string()))
+}
+
+pub type DynamicType<T> = (T, Vec<u8>); // Vec<u8> == remaining bytes after
+
+pub fn de_array<T, F>(bytes: Vec<u8>, deserialize_t: F) -> ProtocolDeserializeResult<DynamicType<Vec<T>>>
     where F: Fn(Vec<u8>) -> (T, Vec<u8>) {
 
     let array_size = de_i32(bytes[0..3].to_vec());
@@ -49,7 +56,7 @@ pub fn de_array<T, F>(bytes: Vec<u8>, element_byte_size: usize, deserialize_t: F
     })
 }
 
-fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> (Vec<T>, Vec<u8>)
+fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> DynamicType<Vec<T>>
     where F: Fn(Vec<u8>) -> (T, Vec<u8>) {
 
     if elements <= 0 {
@@ -61,5 +68,23 @@ fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> 
         ts.append(&mut next_ts);
         (ts, leftover_bytes)
     }
+}
+
+fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<String>> {
+    de_i16(bytes[0..1].to_vec()).and_then(|string_size|{
+        let usize_string_size = string_size as usize;
+        let remaining_bytes = bytes[usize_string_size + 1..].to_vec();
+        let string_bytes = &bytes[2..usize_string_size];
+
+        if let Ok(string) = from_utf8(string_bytes) {
+            Ok((String::from(string), remaining_bytes))
+        } else {
+            Err(DeserializeError::of(String::from("Failed to deserialize string")))
+        }
+    })
+}
+
+fn de_opt_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<Option<String>>> {
+    unimplemented!()
 }
 
