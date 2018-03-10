@@ -33,30 +33,33 @@ pub fn de_i32(bytes: Vec<u8>) -> ProtocolDeserializeResult<i32> {
     Cursor::new(bytes).read_i32::<BigEndian>().map_err(|e| DeserializeError::of(e.description().to_string()))
 }
 
-pub fn de_array<T, F>(bytes: Vec<u8>, element_byte_size: usize, deserialize_t: F) -> ProtocolDeserializeResult<Vec<T>>
+pub fn de_array<T, F>(bytes: Vec<u8>, element_byte_size: usize, deserialize_t: F) -> ProtocolDeserializeResult<(Vec<T>, Vec<u8>)>
     where F: Fn(Vec<u8>) -> (T, Vec<u8>) {
+
     let array_size = de_i32(bytes[0..3].to_vec());
 
-    array_size.and_then(|size| {
+    array_size.and_then(|expected_elements| {
         let element_bytes = bytes[4..].to_vec();
-        let elements = de_array_transform(element_bytes, deserialize_t);
-        if elements.len() != (size as usize) {
-            Err(DeserializeError::of(format!("Unexpected number of array elements. Expected {}, not {}.", size, elements.len())))
+        let (elements, remaining_bytes) = de_array_transform(element_bytes, expected_elements, deserialize_t);
+        if elements.len() != (expected_elements as usize) {
+            Err(DeserializeError::of(format!("Unexpected number of array elements. Expected {}, not {}.", expected_elements, elements.len())))
         } else {
-            Ok(elements)
+            Ok((elements, remaining_bytes))
         }
     })
 }
 
-fn de_array_transform<T, F>(bytes: Vec<u8>, deserialize_t: F) -> Vec<T>
+fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> (Vec<T>, Vec<u8>)
     where F: Fn(Vec<u8>) -> (T, Vec<u8>) {
-    if bytes.len() <= 0 {
-        vec![] as Vec<T>
+
+    if elements <= 0 {
+        (vec![] as Vec<T>, bytes)
     } else {
         let (t, leftover_bytes) = deserialize_t(bytes);
+        let (mut next_ts, leftover_bytes) = de_array_transform(leftover_bytes, elements - 1, deserialize_t);
         let mut ts = vec![t];
-        ts.append(&mut de_array_transform(leftover_bytes, deserialize_t));
-        ts
+        ts.append(&mut next_ts);
+        (ts, leftover_bytes)
     }
 }
 
