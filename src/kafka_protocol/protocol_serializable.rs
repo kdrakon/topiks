@@ -70,21 +70,51 @@ fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> 
     }
 }
 
-fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<String>> {
-    de_i16(bytes[0..1].to_vec()).and_then(|string_size|{
-        let usize_string_size = string_size as usize;
-        let remaining_bytes = bytes[usize_string_size + 1..].to_vec();
-        let string_bytes = &bytes[2..usize_string_size];
+pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<Option<String>>> {
+    de_i16(bytes[0..2].to_vec()).and_then(|byte_length|{
+        match byte_length {
+            -1 => Ok((None, bytes[2..].to_vec())),
+            _ => {
+                let end_index = (byte_length as usize) + 2;
+                let remaining_bytes = bytes[end_index..].to_vec();
+                let string_bytes = &bytes[2..end_index];
 
-        if let Ok(string) = from_utf8(string_bytes) {
-            Ok((String::from(string), remaining_bytes))
-        } else {
-            Err(DeserializeError::of(String::from("Failed to deserialize string")))
+                match from_utf8(string_bytes) {
+                    Ok(string) => Ok((Some(String::from(string)), remaining_bytes)),
+                    _ => Err(DeserializeError::of(String::from("Failed to deserialize string")))
+                }
+            }
         }
     })
 }
 
-fn de_opt_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<Option<String>>> {
-    unimplemented!()
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
 
+    #[test]
+    fn verify_de_string() {
+        let input = String::from("Blah Blah Foo Ba");
+        let bytes = input.into_protocol_bytes().unwrap();
+
+        match de_string(bytes) {
+            Ok((Some(string), remaining_bytes)) => {
+                assert!(remaining_bytes.is_empty());
+                assert_eq!(String::from("Blah Blah Foo Ba"), string);
+            },
+            _ => panic!("test failed")
+        }
+
+        // verify null string
+        let mut bytes = I16(-1).into_protocol_bytes().unwrap();
+        bytes.append(&mut vec![40, 41, 42]);
+        match de_string(bytes) {
+            Ok((None, remaining_bytes)) => {
+                assert_eq!(remaining_bytes, vec![40, 41, 42]);
+            }
+            _ => panic!("test failed")
+        }
+
+    }
+}
