@@ -41,32 +41,31 @@ pub fn de_i16(bytes: Vec<u8>) -> ProtocolDeserializeResult<i16> {
 pub type DynamicType<T> = (T, Vec<u8>); // Vec<u8> == remaining bytes after
 
 pub fn de_array<T, F>(bytes: Vec<u8>, deserialize_t: F) -> ProtocolDeserializeResult<DynamicType<Vec<T>>>
-    where F: Fn(Vec<u8>) -> (T, Vec<u8>) {
+    where F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicType<T>> {
 
-    let array_size = de_i32(bytes[0..3].to_vec());
-
+    let array_size = de_i32(bytes[0..4].to_vec());
     array_size.and_then(|expected_elements| {
         let element_bytes = bytes[4..].to_vec();
-        let (elements, remaining_bytes) = de_array_transform(element_bytes, expected_elements, deserialize_t);
-        if elements.len() != (expected_elements as usize) {
-            Err(DeserializeError::of(format!("Unexpected number of array elements. Expected {}, not {}.", expected_elements, elements.len())))
-        } else {
-            Ok((elements, remaining_bytes))
-        }
+        de_array_transform(element_bytes, expected_elements, deserialize_t)
     })
 }
 
-fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> DynamicType<Vec<T>>
-    where F: Fn(Vec<u8>) -> (T, Vec<u8>) {
+fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> ProtocolDeserializeResult<DynamicType<Vec<T>>>
+    where F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicType<T>> {
 
     if elements <= 0 {
-        (vec![] as Vec<T>, bytes)
+        Ok((vec![] as Vec<T>, bytes))
     } else {
-        let (t, leftover_bytes) = deserialize_t(bytes);
-        let (mut next_ts, leftover_bytes) = de_array_transform(leftover_bytes, elements - 1, deserialize_t);
-        let mut ts = vec![t];
-        ts.append(&mut next_ts);
-        (ts, leftover_bytes)
+        deserialize_t(bytes).and_then(|(t, leftover_bytes)|{
+            match de_array_transform(leftover_bytes, elements - 1, deserialize_t) {
+                Ok((mut next_ts, leftover_bytes)) => {
+                    let mut ts = vec![t];
+                    ts.append(&mut next_ts);
+                    Ok((ts, leftover_bytes))
+                },
+                err @ Err(_) => err
+            }
+        })
     }
 }
 
@@ -91,6 +90,7 @@ pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<Option
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kafka_protocol::protocol_primitives::*;
     use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
 
     #[test]
@@ -115,6 +115,5 @@ mod tests {
             }
             _ => panic!("test failed")
         }
-
     }
 }
