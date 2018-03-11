@@ -5,7 +5,7 @@ use std::error::Error;
 use std::io::Cursor;
 use std::io::Result as IOResult;
 use std::str::from_utf8;
-use super::protocol_response::*;
+use kafka_protocol::protocol_response::*;
 
 /// If implemented, a struct/enum can be sent on the wire to a
 /// Kafka broker.

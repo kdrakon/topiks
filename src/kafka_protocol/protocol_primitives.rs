@@ -4,8 +4,8 @@ use self::byteorder::{BigEndian, WriteBytesExt};
 use self::ProtocolPrimitives::*;
 use std::io::*;
 use std::error::Error;
-use super::protocol_serializable::*;
-use super::protocol_serializable::ProtocolSerializeResult;
+use kafka_protocol::protocol_serializable::*;
+use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
 /// Primitive types supported by Kafka protocol.
 /// Primarily wrapped for convenience with ProtocolSerializable.

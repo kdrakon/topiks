@@ -1,7 +1,7 @@
-use super::protocol_primitives::*;
-use super::protocol_primitives::ProtocolPrimitives::*;
-use super::protocol_serializable::*;
-use super::protocol_serializable::ProtocolSerializeResult;
+use kafka_protocol::protocol_primitives::*;
+use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
+use kafka_protocol::protocol_serializable::*;
+use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 use self::RequestMessage::*;
 
 /// Top-level request which can be sent to a Kafka broker.
