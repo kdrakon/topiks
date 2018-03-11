@@ -1,6 +1,6 @@
 extern crate byteorder;
 
-use kafka_protocol::*;
+use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_serializable::*;
 use self::byteorder::{BigEndian, ReadBytesExt};

@@ -2,10 +2,10 @@ extern crate byteorder;
 
 use self::byteorder::{BigEndian, WriteBytesExt};
 use self::ProtocolPrimitives::*;
+use std::io::*;
 use std::error::Error;
-use super::protocol_serializable::*;
-use super::protocol_serializable::ProtocolSerializeError;
-use super::protocol_serializable::ProtocolSerializeResult;
+use kafka_protocol::protocol_serializable::*;
+use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
 /// Primitive types supported by Kafka protocol.
 /// Primarily wrapped for convenience with ProtocolSerializable.
@@ -50,9 +50,7 @@ impl ProtocolSerializable for ProtocolPrimitives {
                 I32(i) => payload.write_i32::<BigEndian>(i),
                 Boolean(b) => payload.write_i8(if b { 1 } else { 0 })
             };
-        serialized
-            .map_err(|e| ProtocolSerializeError(String::from(e.description())))
-            .map(|_| payload)
+        serialized.map(|_| payload)
     }
 }
 
@@ -65,7 +63,7 @@ impl<T> ProtocolSerializable for ProtocolArray<T>
         let sequenced =
             self.array.into_iter().map(|t| {
                 t.into_protocol_bytes()
-            }).collect::<Result<Vec<Vec<u8>>, ProtocolSerializeError>>();
+            }).collect::<Result<Vec<Vec<u8>>>>();
 
         let array_in_bytes =
             sequenced.map(|ref s| {
