@@ -81,7 +81,7 @@ impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
 impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<MetadataResponse> {
         let result =
-            de_i32(self[0..3].to_vec()).and_then(|throttle_time_ms| {
+            de_i32(self[0..4].to_vec()).and_then(|throttle_time_ms| {
                 de_array(self[4..].to_vec(), deserialize_broker_metadata).map(|(brokers, remaining_bytes): (Vec<BrokerMetadata>, Vec<u8>)| {
                     (throttle_time_ms, brokers, remaining_bytes)
                 })
@@ -116,9 +116,26 @@ impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
 }
 
 fn deserialize_broker_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<BrokerMetadata>> {
+    let result =
+        de_i32(bytes[0..4].to_vec()).and_then(|node_id| {
+            de_string(bytes[4..].to_vec()).map(|(host, remaining_bytes)| {
+                let host = host.expect("Expected host string");
+                (node_id, host, remaining_bytes)
+            })
+        });
 
+    let result =
+        result.and_then(|(node_id, host, remaining_bytes)| {
+            de_i32(remaining_bytes[0..4].to_vec()).and_then(|port| {
+                de_string(remaining_bytes[4..].to_vec()).map(|(rack, remaining_bytes)| {
+                    (node_id, host, port, rack, remaining_bytes)
+                })
+            })
+        });
 
-    unimplemented!()
+    result.map(|(node_id, host, port, rack, remaining_bytes)| {
+        (BrokerMetadata { node_id, host, port, rack }, remaining_bytes)
+    })
 }
 
 fn deserialize_topic_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<TopicMetadata>> {
