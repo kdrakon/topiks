@@ -80,16 +80,47 @@ impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
 
 impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<MetadataResponse> {
-//        de_i32(self[0..3].to_vec()).and_then(|throttle_time_ms| {
-//            de_array(self[4..].to_vec(), deserialize_broker_metadata)
-//        }).and_then(|(brokers, remaining_bytes)| {
-//
-//            unimplemented!()
-//        });
-        unimplemented!()
+        let result =
+            de_i32(self[0..3].to_vec()).and_then(|throttle_time_ms| {
+                de_array(self[4..].to_vec(), deserialize_broker_metadata).map(|(brokers, remaining_bytes): (Vec<BrokerMetadata>, Vec<u8>)| {
+                    (throttle_time_ms, brokers, remaining_bytes)
+                })
+            });
+
+        let result =
+            result.and_then(|(throttle_time_ms, brokers, remaining_bytes)| {
+                de_string(remaining_bytes).map(|(cluster_id, remaining_bytes)| {
+                    (throttle_time_ms, brokers, cluster_id, remaining_bytes)
+                })
+            });
+
+        let result =
+            result.and_then(|(throttle_time_ms, brokers, cluster_id, remaining_bytes)| {
+                de_i32(remaining_bytes[0..2].to_vec()).map(|controller_id| {
+                    (throttle_time_ms, brokers, cluster_id, controller_id, remaining_bytes[2..].to_vec())
+                })
+            });
+
+        let result =
+            result.and_then(|(throttle_time_ms, brokers, cluster_id, controller_id, remaining_bytes)| {
+                de_array(remaining_bytes, deserialize_topic_metadata).map(|(topic_metadata, remaining_bytes)| {
+                    (throttle_time_ms, brokers, cluster_id, controller_id, topic_metadata, remaining_bytes)
+                })
+            });
+
+        result.map(|(throttle_time_ms, brokers, cluster_id, controller_id, topic_metadata, remaining_bytes)| {
+            if !remaining_bytes.is_empty() { panic!("Deserialize of MetadataResponse did not cover remaining {} bytes", remaining_bytes.len()); }
+            MetadataResponse { throttle_time_ms, brokers, cluster_id, controller_id, topic_metadata }
+        })
     }
 }
 
-fn deserialize_broker_metadata(bytes: Vec<u8>) -> (BrokerMetadata, Vec<u8>) {
+fn deserialize_broker_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<BrokerMetadata>> {
+
+
+    unimplemented!()
+}
+
+fn deserialize_topic_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<TopicMetadata>> {
     unimplemented!()
 }
