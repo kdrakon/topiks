@@ -2,8 +2,8 @@ extern crate byteorder;
 
 use self::byteorder::{BigEndian, ReadBytesExt};
 use std::error::Error;
-use std::io::Result as IOResult;
 use std::io::Cursor;
+use std::io::Result as IOResult;
 use std::str::from_utf8;
 use super::protocol_response::*;
 
@@ -89,9 +89,10 @@ pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<Option
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     use kafka_protocol::protocol_primitives::*;
     use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
+    use super::*;
 
     #[test]
     fn verify_de_string() {
@@ -113,6 +114,26 @@ mod tests {
             Ok((None, remaining_bytes)) => {
                 assert_eq!(remaining_bytes, vec![40, 41, 42]);
             }
+            _ => panic!("test failed")
+        }
+    }
+
+    #[test]
+    fn verify_de_array() {
+        let array = ProtocolArray::of(vec![String::from("cat"), String::from("dog"), String::from("bird")]);
+        let bytes = array.into_protocol_bytes().unwrap();
+        let result =
+            de_array(bytes, |element| {
+                de_string(element).map(|(opt_string, remaining_bytes)| {
+                    (opt_string.expect("should be deserializable string"), remaining_bytes)
+                })
+            });
+
+        match result {
+            Ok((strings, remaining_bytes)) => {
+                assert_eq!(3, strings.len());
+                assert_eq!(vec![String::from("cat"), String::from("dog"), String::from("bird")], strings);
+            },
             _ => panic!("test failed")
         }
     }
