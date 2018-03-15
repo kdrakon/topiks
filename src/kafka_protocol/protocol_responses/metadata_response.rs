@@ -1,11 +1,11 @@
 extern crate byteorder;
 
+use kafka_protocol::protocol_primitives::*;
+use kafka_protocol::protocol_response::*;
+use kafka_protocol::protocol_serializable::*;
 use self::byteorder::{BigEndian, ReadBytesExt};
 use std::error::Error;
 use std::io::*;
-use kafka_protocol::protocol_response::*;
-use kafka_protocol::protocol_serializable::*;
-use kafka_protocol::protocol_primitives::*;
 
 pub struct MetadataResponse {
     throttle_time_ms: i32,
@@ -117,5 +117,19 @@ fn deserialize_broker_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<Dyna
 }
 
 fn deserialize_topic_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<TopicMetadata>> {
+    de_i16(bytes[0..2].to_vec()).and_then(|error_code| {
+        de_string(bytes[2..].to_vec()).map(|(topic, remaining_bytes)| {
+            let topic = topic.expect("Unexpected empty topic name");
+            let is_internal = if remaining_bytes[0] == 1 { true } else { false };
+            (topic, is_internal, remaining_bytes[1..].to_vec())
+        }).and_then(|(topic, is_internal, remaining_bytes)| {
+            de_array(remaining_bytes, deserialize_partition_metadata).map(|(partition_metadata, remaining_bytes)| {
+                (TopicMetadata { error_code, topic, is_internal, partition_metadata }, remaining_bytes)
+            })
+        })
+    })
+}
+
+fn deserialize_partition_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<PartitionMetadata>> {
     unimplemented!()
 }
