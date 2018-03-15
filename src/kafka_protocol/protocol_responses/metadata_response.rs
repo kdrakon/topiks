@@ -131,5 +131,26 @@ fn deserialize_topic_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<Dynam
 }
 
 fn deserialize_partition_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<PartitionMetadata>> {
-    unimplemented!()
+    de_i16(bytes[0..2].to_vec()).and_then(|error_code| {
+        de_i32(bytes[2..6].to_vec()).and_then((|partition| {
+            de_i32(bytes[6..10].to_vec()).and_then(|leader| {
+                de_array(bytes[10..].to_vec(), |bytes| {
+                    de_i32(bytes[0..4].to_vec()).map(|replicas| { (replicas, bytes[4..].to_vec()) })
+                }).and_then(|(replicas, remaining_bytes)| {
+                    de_array(remaining_bytes, |bytes| {
+                        de_i32(bytes[0..4].to_vec()).map(|isr| { (isr, bytes[4..].to_vec()) })
+                    }).and_then(|(isr, remaining_bytes)| {
+                        de_array(remaining_bytes, |bytes| {
+                            de_i32(bytes[0..4].to_vec()).map(|offline_replicas| { (offline_replicas, bytes[4..].to_vec()) })
+                        }).map(|(offline_replicas, remaining_bytes)| {
+                            (
+                                PartitionMetadata { error_code, partition, leader, replicas, isr, offline_replicas },
+                                remaining_bytes
+                            )
+                        })
+                    })
+                })
+            })
+        }))
+    })
 }
