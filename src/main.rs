@@ -1,3 +1,4 @@
+#[macro_use] extern crate proptest;
 extern crate byteorder;
 
 use kafka_protocol::protocol_request::*;

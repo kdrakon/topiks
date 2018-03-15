@@ -94,47 +94,51 @@ mod tests {
     use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
     use super::*;
 
-    #[test]
-    fn verify_de_string() {
-        let input = String::from("Blah Blah Foo Ba");
-        let bytes = input.into_protocol_bytes().unwrap();
+    proptest! {
+        #[test]
+        fn verify_de_string(ref s in ".*") {
 
-        match de_string(bytes) {
-            Ok((Some(string), remaining_bytes)) => {
-                assert!(remaining_bytes.is_empty());
-                assert_eq!(String::from("Blah Blah Foo Ba"), string);
-            },
-            _ => panic!("test failed")
-        }
-
-        // verify null string
-        let mut bytes = I16(-1).into_protocol_bytes().unwrap();
-        bytes.append(&mut vec![40, 41, 42]);
-        match de_string(bytes) {
-            Ok((None, remaining_bytes)) => {
-                assert_eq!(remaining_bytes, vec![40, 41, 42]);
+            let bytes = s.clone().into_protocol_bytes().unwrap();
+            match de_string(bytes) {
+                Ok((Some(string), remaining_bytes)) => {
+                    assert!(remaining_bytes.is_empty());
+                    assert_eq!(s.clone(), string);
+                },
+                _ => panic!("test failed")
             }
-            _ => panic!("test failed")
+
+            // verify null string
+            let mut bytes = I16(-1).into_protocol_bytes().unwrap();
+            bytes.append(&mut vec![40, 41, 42]);
+            match de_string(bytes) {
+                Ok((None, remaining_bytes)) => {
+                    assert_eq!(remaining_bytes, vec![40, 41, 42]);
+                }
+                _ => panic!("test failed")
+            }
         }
     }
 
-    #[test]
-    fn verify_de_array() {
-        let array = ProtocolArray::of(vec![String::from("cat"), String::from("dog"), String::from("bird")]);
-        let bytes = array.into_protocol_bytes().unwrap();
-        let result =
-            de_array(bytes, |element| {
-                de_string(element).map(|(opt_string, remaining_bytes)| {
-                    (opt_string.expect("should be deserializable string"), remaining_bytes)
-                })
-            });
+    proptest! {
+        #[test]
+        fn verify_de_array(ref a in ".*", ref b in ".*", ref c in ".*") {
 
-        match result {
-            Ok((strings, remaining_bytes)) => {
-                assert_eq!(3, strings.len());
-                assert_eq!(vec![String::from("cat"), String::from("dog"), String::from("bird")], strings);
-            },
-            _ => panic!("test failed")
+            let array = ProtocolArray::of(vec![a.clone(), b.clone(), c.clone()]);
+            let bytes = array.into_protocol_bytes().unwrap();
+            let result =
+                de_array(bytes, |element| {
+                    de_string(element).map(|(opt_string, remaining_bytes)| {
+                        (opt_string.expect("should be deserializable string"), remaining_bytes)
+                    })
+                });
+
+            match result {
+                Ok((strings, remaining_bytes)) => {
+                    assert_eq!(3, strings.len());
+                    assert_eq!(vec![a.clone(), b.clone(), c.clone()], strings);
+                },
+                _ => panic!("test failed")
+            }
         }
     }
 }
