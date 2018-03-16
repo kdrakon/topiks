@@ -41,7 +41,7 @@ pub struct PartitionMetadata {
 impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<Response<MetadataResponse>> {
         let fields: ProtocolDeserializeResult<(ResponseHeader, MetadataResponse)> =
-            self[0..3].to_vec().into_protocol_type().and_then(|header| {
+            self[0..4].to_vec().into_protocol_type().and_then(|header| {
                 self[4..].to_vec().into_protocol_type().map(|response_message| {
                     (header, response_message)
                 })
@@ -74,8 +74,8 @@ impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
 
         let result =
             result.and_then(|(throttle_time_ms, brokers, cluster_id, remaining_bytes)| {
-                de_i32(remaining_bytes[0..2].to_vec()).map(|controller_id| {
-                    (throttle_time_ms, brokers, cluster_id, controller_id, remaining_bytes[2..].to_vec())
+                de_i32(remaining_bytes[0..4].to_vec()).map(|controller_id| {
+                    (throttle_time_ms, brokers, cluster_id, controller_id, remaining_bytes[4..].to_vec())
                 })
             });
 
