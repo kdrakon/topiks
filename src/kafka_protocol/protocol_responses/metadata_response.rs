@@ -1,11 +1,7 @@
 extern crate byteorder;
 
-use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_serializable::*;
-use self::byteorder::{BigEndian, ReadBytesExt};
-use std::error::Error;
-use std::io::*;
 
 pub struct MetadataResponse {
     throttle_time_ms: i32,

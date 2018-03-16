@@ -5,7 +5,6 @@ use std::error::Error;
 use std::io::Cursor;
 use std::io::Result as IOResult;
 use std::str::from_utf8;
-use kafka_protocol::protocol_response::*;
 
 /// If implemented, a struct/enum can be sent on the wire to a
 /// Kafka broker.
@@ -136,6 +135,7 @@ mod tests {
                 Ok((strings, remaining_bytes)) => {
                     assert_eq!(3, strings.len());
                     assert_eq!(vec![a.clone(), b.clone(), c.clone()], strings);
+                    assert_eq!(0, remaining_bytes.len());
                 },
                 _ => panic!("test failed")
             }

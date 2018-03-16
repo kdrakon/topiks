@@ -1,9 +1,5 @@
 extern crate byteorder;
 
-use self::byteorder::{BigEndian, ReadBytesExt};
-use std::error::Error;
-use std::io::*;
-use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_serializable::*;
 
 /// Top-level response which can be sent from a Kafka broker.

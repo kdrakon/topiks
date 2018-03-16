@@ -6,6 +6,6 @@ authors = ["Sean Policarpio <kdrakon@gmail.com>"]
 [dependencies]
 byteorder = "1.2.1"
 
-[dev-dependencies]
+#[dev-dependencies]
 proptest = "0.5.1"
 
