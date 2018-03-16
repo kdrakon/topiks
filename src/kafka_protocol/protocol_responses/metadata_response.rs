@@ -3,6 +3,7 @@ extern crate byteorder;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_serializable::*;
 
+#[derive(Debug)]
 pub struct MetadataResponse {
     throttle_time_ms: i32,
     brokers: Vec<BrokerMetadata>,
@@ -11,6 +12,7 @@ pub struct MetadataResponse {
     topic_metadata: Vec<TopicMetadata>,
 }
 
+#[derive(Debug)]
 pub struct BrokerMetadata {
     node_id: i32,
     host: String,
@@ -18,6 +20,7 @@ pub struct BrokerMetadata {
     rack: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct TopicMetadata {
     error_code: i16,
     topic: String,
@@ -25,6 +28,7 @@ pub struct TopicMetadata {
     partition_metadata: Vec<PartitionMetadata>,
 }
 
+#[derive(Debug)]
 pub struct PartitionMetadata {
     error_code: i16,
     partition: i32,

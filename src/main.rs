@@ -43,10 +43,10 @@ fn main() {
 
     match send_result {
         Ok(result) => {
-            println!("printing results...");
-            for b in result.iter() {
-                print!("{:02X} ", b)
-            }
+            println!("printing results for {:?} bytes...", result.len());
+            let result: ProtocolDeserializeResult<Response<MetadataResponse>> = result.into_protocol_type();
+            let response = result.unwrap();
+            println!("output: {:?}", response);
         }
         Err(e) => println!("failed, {:?}", e)
     };
