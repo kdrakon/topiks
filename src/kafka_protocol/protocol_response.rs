@@ -1,13 +1,10 @@
 extern crate byteorder;
 
-use self::byteorder::{BigEndian, ReadBytesExt};
-use std::error::Error;
-use std::io::*;
-use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_serializable::*;
 
 /// Top-level response which can be sent from a Kafka broker.
 ///
+#[derive(Debug)]
 pub struct Response<T> {
     pub header: ResponseHeader,
     pub response_message: T,
@@ -15,6 +12,7 @@ pub struct Response<T> {
 
 /// Header information for a Response
 ///
+#[derive(Debug)]
 pub struct ResponseHeader {
     pub correlation_id: i32
 }

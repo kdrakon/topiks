@@ -1,12 +1,9 @@
 extern crate byteorder;
 
-use self::byteorder::{BigEndian, ReadBytesExt};
-use std::error::Error;
-use std::io::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_serializable::*;
-use kafka_protocol::protocol_primitives::*;
 
+#[derive(Debug)]
 pub struct MetadataResponse {
     throttle_time_ms: i32,
     brokers: Vec<BrokerMetadata>,
@@ -15,6 +12,7 @@ pub struct MetadataResponse {
     topic_metadata: Vec<TopicMetadata>,
 }
 
+#[derive(Debug)]
 pub struct BrokerMetadata {
     node_id: i32,
     host: String,
@@ -22,6 +20,7 @@ pub struct BrokerMetadata {
     rack: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct TopicMetadata {
     error_code: i16,
     topic: String,
@@ -29,6 +28,7 @@ pub struct TopicMetadata {
     partition_metadata: Vec<PartitionMetadata>,
 }
 
+#[derive(Debug)]
 pub struct PartitionMetadata {
     error_code: i16,
     partition: i32,
@@ -41,7 +41,7 @@ pub struct PartitionMetadata {
 impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<Response<MetadataResponse>> {
         let fields: ProtocolDeserializeResult<(ResponseHeader, MetadataResponse)> =
-            self[0..3].to_vec().into_protocol_type().and_then(|header| {
+            self[0..4].to_vec().into_protocol_type().and_then(|header| {
                 self[4..].to_vec().into_protocol_type().map(|response_message| {
                     (header, response_message)
                 })
@@ -74,8 +74,8 @@ impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
 
         let result =
             result.and_then(|(throttle_time_ms, brokers, cluster_id, remaining_bytes)| {
-                de_i32(remaining_bytes[0..2].to_vec()).map(|controller_id| {
-                    (throttle_time_ms, brokers, cluster_id, controller_id, remaining_bytes[2..].to_vec())
+                de_i32(remaining_bytes[0..4].to_vec()).map(|controller_id| {
+                    (throttle_time_ms, brokers, cluster_id, controller_id, remaining_bytes[4..].to_vec())
                 })
             });
 
@@ -117,5 +117,40 @@ fn deserialize_broker_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<Dyna
 }
 
 fn deserialize_topic_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<TopicMetadata>> {
-    unimplemented!()
+    de_i16(bytes[0..2].to_vec()).and_then(|error_code| {
+        de_string(bytes[2..].to_vec()).map(|(topic, remaining_bytes)| {
+            let topic = topic.expect("Unexpected empty topic name");
+            let is_internal = if remaining_bytes[0] == 1 { true } else { false };
+            (topic, is_internal, remaining_bytes[1..].to_vec())
+        }).and_then(|(topic, is_internal, remaining_bytes)| {
+            de_array(remaining_bytes, deserialize_partition_metadata).map(|(partition_metadata, remaining_bytes)| {
+                (TopicMetadata { error_code, topic, is_internal, partition_metadata }, remaining_bytes)
+            })
+        })
+    })
+}
+
+fn deserialize_partition_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<PartitionMetadata>> {
+    de_i16(bytes[0..2].to_vec()).and_then(|error_code| {
+        de_i32(bytes[2..6].to_vec()).and_then((|partition| {
+            de_i32(bytes[6..10].to_vec()).and_then(|leader| {
+                de_array(bytes[10..].to_vec(), |bytes| {
+                    de_i32(bytes[0..4].to_vec()).map(|replicas| { (replicas, bytes[4..].to_vec()) })
+                }).and_then(|(replicas, remaining_bytes)| {
+                    de_array(remaining_bytes, |bytes| {
+                        de_i32(bytes[0..4].to_vec()).map(|isr| { (isr, bytes[4..].to_vec()) })
+                    }).and_then(|(isr, remaining_bytes)| {
+                        de_array(remaining_bytes, |bytes| {
+                            de_i32(bytes[0..4].to_vec()).map(|offline_replicas| { (offline_replicas, bytes[4..].to_vec()) })
+                        }).map(|(offline_replicas, remaining_bytes)| {
+                            (
+                                PartitionMetadata { error_code, partition, leader, replicas, isr, offline_replicas },
+                                remaining_bytes
+                            )
+                        })
+                    })
+                })
+            })
+        }))
+    })
 }

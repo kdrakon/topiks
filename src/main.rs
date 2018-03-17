@@ -1,7 +1,10 @@
 extern crate byteorder;
+#[macro_use]
+extern crate proptest;
 
 use kafka_protocol::protocol_request::*;
-use kafka_protocol::protocol_primitives::*;
+use kafka_protocol::protocol_response::*;
+use kafka_protocol::protocol_responses::metadata_response::*;
 use kafka_protocol::protocol_serializable::*;
 use self::byteorder::{BigEndian, ReadBytesExt};
 use std::io::*;
@@ -40,10 +43,10 @@ fn main() {
 
     match send_result {
         Ok(result) => {
-            println!("printing results...");
-            for b in result.iter() {
-                print!("{:02X} ", b)
-            }
+            println!("printing results for {:?} bytes...", result.len());
+            let result: ProtocolDeserializeResult<Response<MetadataResponse>> = result.into_protocol_type();
+            let response = result.unwrap();
+            println!("output: {:?}", response);
         }
         Err(e) => println!("failed, {:?}", e)
     };
