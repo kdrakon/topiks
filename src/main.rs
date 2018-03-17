@@ -1,7 +1,11 @@
 extern crate byteorder;
+extern crate cursive;
 #[macro_use]
 extern crate proptest;
 
+use cursive::Cursive;
+use cursive::traits::*;
+use cursive::views::*;
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::metadata_response::*;
@@ -41,14 +45,46 @@ fn main() {
             })
         });
 
-    match send_result {
-        Ok(result) => {
-            println!("printing results for {:?} bytes...", result.len());
-            let result: ProtocolDeserializeResult<Response<MetadataResponse>> = result.into_protocol_type();
-            let response = result.unwrap();
-            println!("output: {:?}", response);
-        }
-        Err(e) => println!("failed, {:?}", e)
-    };
+    let response =
+        match send_result {
+            Ok(result) => {
+                println!("printing results for {:?} bytes...", result.len());
+                let result: ProtocolDeserializeResult<Response<MetadataResponse>> = result.into_protocol_type();
+                let response = result.unwrap();
+                println!("output: {:?}", response);
+                response
+            }
+            Err(e) => {
+                println!("failed, {:?}", e);
+                unimplemented!()
+            }
+        };
+
+    let mut cursive = Cursive::new();
+
+    cursive.add_global_callback('q', |s| s.quit());
+
+    let mut topics = SelectView::<TopicMetadata>::new().on_submit(topics_select_callback);
+
+    response.response_message.topic_metadata.into_iter().for_each(|topic_metadata| {
+        topics.add_item(topic_metadata.topic.clone(), topic_metadata)
+    });
+
+    let topic_info = TextView::new("select a topic").with_id("topic_info");
+
+    let root_layout =
+        LinearLayout::vertical()
+            .child(BoxView::with_full_screen(topics))
+            .child(BoxView::with_full_screen(topic_info));
+
+    cursive.add_layer(root_layout);
+
+    cursive.run();
+}
+
+fn topics_select_callback(s: &mut Cursive, topic_metadata: &TopicMetadata) {
+    s.call_on_id("topic_info", |topic_info: &mut TextView| {
+       topic_info.set_content(format!("{:?}", topic_metadata))
+    });
 }
 
