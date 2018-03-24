@@ -1,10 +1,11 @@
 [package]
 name = "topiks"
 version = "0.1.0"
-authors = ["Sean Policarpio <kdrakon@gmail.com>"]
+authors = ["Sean Policarpio <sean@policarp.io>"]
 
 [dependencies]
 byteorder = "1.2.1"
+cursive = "0.8"
 
 #[dev-dependencies]
 proptest = "0.5.1"
