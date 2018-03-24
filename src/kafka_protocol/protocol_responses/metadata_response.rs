@@ -28,7 +28,7 @@ pub struct TopicMetadata {
     pub partition_metadata: Vec<PartitionMetadata>,
 }
 
-#[derive(Debug)]
+#[derive(Debug)] #[derive(Clone)]
 pub struct PartitionMetadata {
     pub error_code: i16,
     pub partition: i32,
