@@ -19,6 +19,7 @@ pub enum ProtocolPrimitives {
 /// Wrapper to a vector for convenience with
 /// ProtocolSerializable
 ///
+#[derive(Clone)]
 pub struct ProtocolArray<T> {
     array: Vec<T>
 }
