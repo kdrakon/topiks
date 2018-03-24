@@ -9,6 +9,7 @@ use cursive::align::*;
 use cursive::traits::*;
 use cursive::views::*;
 use kafka_protocol::protocol_request::*;
+use kafka_protocol::protocol_requests::metadata_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::metadata_response::*;
 use kafka_protocol::protocol_serializable::*;
@@ -19,7 +20,7 @@ use std::net::TcpStream;
 pub mod kafka_protocol;
 
 fn main() {
-    let metadata_request = RequestMessage::MetadataRequest { topics: None, allow_auto_topic_creation: false };
+    let metadata_request = MetadataRequest { topics: None, allow_auto_topic_creation: false };
 
     let request =
         Request {
