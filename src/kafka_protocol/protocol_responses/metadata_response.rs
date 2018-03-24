@@ -5,37 +5,37 @@ use kafka_protocol::protocol_serializable::*;
 
 #[derive(Debug)]
 pub struct MetadataResponse {
-    throttle_time_ms: i32,
-    brokers: Vec<BrokerMetadata>,
-    cluster_id: Option<String>,
-    controller_id: i32,
-    topic_metadata: Vec<TopicMetadata>,
+    pub throttle_time_ms: i32,
+    pub brokers: Vec<BrokerMetadata>,
+    pub cluster_id: Option<String>,
+    pub controller_id: i32,
+    pub topic_metadata: Vec<TopicMetadata>,
 }
 
 #[derive(Debug)]
 pub struct BrokerMetadata {
-    node_id: i32,
-    host: String,
-    port: i32,
-    rack: Option<String>,
+    pub node_id: i32,
+    pub host: String,
+    pub port: i32,
+    pub rack: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct TopicMetadata {
-    error_code: i16,
-    topic: String,
-    is_internal: bool,
-    partition_metadata: Vec<PartitionMetadata>,
+    pub error_code: i16,
+    pub topic: String,
+    pub is_internal: bool,
+    pub partition_metadata: Vec<PartitionMetadata>,
 }
 
-#[derive(Debug)]
+#[derive(Debug)] #[derive(Clone)]
 pub struct PartitionMetadata {
-    error_code: i16,
-    partition: i32,
-    leader: i32,
-    replicas: Vec<i32>,
-    isr: Vec<i32>,
-    offline_replicas: Vec<i32>,
+    pub error_code: i16,
+    pub partition: i32,
+    pub leader: i32,
+    pub replicas: Vec<i32>,
+    pub isr: Vec<i32>,
+    pub offline_replicas: Vec<i32>,
 }
 
 impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
