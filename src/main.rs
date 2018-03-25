@@ -12,6 +12,7 @@ use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::metadata_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::metadata_response::*;
+use kafka_protocol::protocol_responses::*;
 use kafka_protocol::protocol_serializable::*;
 use self::byteorder::{BigEndian, ReadBytesExt};
 use std::io::*;
