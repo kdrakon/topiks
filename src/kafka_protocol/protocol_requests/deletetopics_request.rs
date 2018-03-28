@@ -21,3 +21,23 @@ impl ProtocolSerializable for DeleteTopicsRequest {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use kafka_protocol::protocol_requests::deletetopics_request::*;
+
+    proptest! {
+        #[test]
+        fn verify_serde_for_deletetopics_request(ref topic_a in ".*", ref topic_b in ".*") {
+            let request = DeleteTopicsRequest {
+                topics: vec![topic_a.clone(), topic_b.clone()],
+                timeout: 42
+            };
+            match request.into_protocol_bytes() {
+                Ok(bytes) => (),
+                Err(e) => panic!(e)
+            };
+        }
+    }
+}
