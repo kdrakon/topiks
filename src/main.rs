@@ -3,22 +3,19 @@ extern crate cursive;
 #[macro_use]
 extern crate proptest;
 
+use cursive::align::*;
 use cursive::Cursive;
 use cursive::theme::*;
-use cursive::align::*;
 use cursive::traits::*;
 use cursive::views::*;
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::metadata_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::metadata_response::*;
-use kafka_protocol::protocol_responses::*;
 use kafka_protocol::protocol_serializable::*;
-use self::byteorder::{BigEndian, ReadBytesExt};
-use std::io::*;
-use std::net::TcpStream;
 
 pub mod kafka_protocol;
+pub mod tcp_stream_util;
 
 fn main() {
     let metadata_request = MetadataRequest { topics: None, allow_auto_topic_creation: false };
@@ -34,35 +31,8 @@ fn main() {
             request_message: metadata_request,
         };
 
-    let bytes = request.into_protocol_bytes().unwrap();
-
-    let send_result =
-        TcpStream::connect("localhost:9092").and_then(|mut stream| {
-            stream.write(bytes.as_slice()).and_then(|_| {
-                let mut result_size_buf: [u8; 4] = [0; 4];
-                stream.read(&mut result_size_buf).and_then(|_| {
-                    Cursor::new(result_size_buf.to_vec()).read_i32::<BigEndian>()
-                }).and_then(|result_size| {
-                    let mut message_buf: Vec<u8> = vec![0; result_size as usize];
-                    stream.read_exact(&mut message_buf).map(|_| message_buf)
-                })
-            })
-        });
-
-    let response =
-        match send_result {
-            Ok(result) => {
-                println!("printing results for {:?} bytes...", result.len());
-                let result: ProtocolDeserializeResult<Response<MetadataResponse>> = result.into_protocol_type();
-                let response = result.unwrap();
-                println!("output: {:?}", response);
-                response
-            }
-            Err(e) => {
-                println!("failed, {:?}", e);
-                unimplemented!()
-            }
-        };
+    let response: Response<MetadataResponse> =
+        tcp_stream_util::request("localhost:9092", request, |bytes| { bytes.into_protocol_type() }).unwrap();
 
     let mut cursive = Cursive::new();
     cursive.set_theme(Theme { shadow: false, borders: BorderStyle::Simple, palette: default_palette() });
@@ -92,7 +62,6 @@ fn main() {
 }
 
 fn broker_metadata_textview(cluster_id: Option<String>, controller_id: i32, brokers: Vec<BrokerMetadata>) -> TextView {
-
     let cluster =
         format!("Cluster: {} Controller ID: {}\n", cluster_id.unwrap_or(String::from("n/a")), controller_id);
 
@@ -121,7 +90,7 @@ fn topics_select_callback(s: &mut Cursive, topic_metadata: &TopicMetadata) {
         TextView::new(format!("Topic: {} | Partitions: {} | Internal: {}", topic_metadata.topic.clone(), topic_metadata.partition_metadata.len(), topic_metadata.is_internal));
 
     let mut partitions = topic_metadata.partition_metadata.clone();
-    partitions.sort_by_key(|e|e.partition);
+    partitions.sort_by_key(|e| e.partition);
 
     let header = format!("{:9} | {:9} | {:9} | {:9} | {:9}", "partition", "leader", "replicas", "isr", "offline replicas");
     let partition_data = TextView::new(

@@ -24,7 +24,7 @@ pub trait ProtocolDeserializable<T> {
 
 pub type ProtocolDeserializeResult<T> = Result<T, DeserializeError>;
 #[derive(Debug)]
-pub struct DeserializeError { error: String }
+pub struct DeserializeError { pub error: String }
 impl DeserializeError {
     pub fn of(error: String) -> DeserializeError { DeserializeError { error } }
 }
