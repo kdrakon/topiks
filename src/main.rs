@@ -5,8 +5,10 @@ extern crate proptest;
 
 use cursive::align::*;
 use cursive::Cursive;
+use cursive::event::*;
 use cursive::theme::*;
 use cursive::traits::*;
+use cursive::view::Identifiable;
 use cursive::views::*;
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::metadata_request::*;
@@ -36,28 +38,28 @@ fn main() {
 
     let mut cursive = Cursive::new();
     cursive.set_theme(Theme { shadow: false, borders: BorderStyle::Simple, palette: default_palette() });
-    cursive.add_global_callback('q', |s| s.quit());
+    cursive.add_global_callback('q', |c| c.quit());
 
     let brokers =
         broker_metadata_textview(response.response_message.cluster_id, response.response_message.controller_id, response.response_message.brokers)
             .align(Align::new(HAlign::Right, VAlign::Center));
 
     let topics =
-        topic_metadata_selectview(response.response_message.topic_metadata);
+        OnEventView::new(topic_metadata_selectview(response.response_message.topic_metadata).with_id("topics"))
+            .on_pre_event('d', delete_topic_callback);
 
-    let mut topic_info = StackView::new();
-    topic_info.add_fullscreen_layer(BoxView::with_full_screen(TextView::new("Topiks")));
+    let mut info_view = StackView::new();
+    info_view.add_fullscreen_layer(BoxView::with_full_screen(TextView::new("Topiks")));
 
     let root_layout =
         LinearLayout::vertical()
             .child(Panel::new(brokers))
             .child(LinearLayout::horizontal()
                 .child(BoxView::with_full_screen(topics))
-                .child(Panel::new(topic_info.with_id("topic_info")))
+                .child(Panel::new(info_view.with_id("info_view")))
             );
 
     cursive.add_fullscreen_layer(root_layout);
-
     cursive.run();
 }
 
@@ -85,9 +87,9 @@ fn topic_metadata_selectview(topic_metadatas: Vec<TopicMetadata>) -> SelectView<
     topics
 }
 
-fn topics_select_callback(s: &mut Cursive, topic_metadata: &TopicMetadata) {
+fn topics_select_callback(cursive: &mut Cursive, topic_metadata: &TopicMetadata) {
     let topic_header =
-        TextView::new(format!("Topic: {} | Partitions: {} | Internal: {}", topic_metadata.topic.clone(), topic_metadata.partition_metadata.len(), topic_metadata.is_internal));
+        TextView::new(format!("Topic: {}\nPartitions: {} | Internal: {}", topic_metadata.topic.clone(), topic_metadata.partition_metadata.len(), topic_metadata.is_internal));
 
     let mut partitions = topic_metadata.partition_metadata.clone();
     partitions.sort_by_key(|e| e.partition);
@@ -110,9 +112,35 @@ fn topics_select_callback(s: &mut Cursive, topic_metadata: &TopicMetadata) {
             .child(Panel::new(topic_header))
             .child(partition_data);
 
-    s.call_on_id("topic_info", |topic_info: &mut StackView| {
+    cursive.call_on_id("info_view", |topic_info: &mut StackView| {
         topic_info.pop_layer();
         topic_info.add_fullscreen_layer(BoxView::with_full_screen(topic_metadata_layout));
     });
+}
+
+fn delete_topic_callback(cursive: &mut Cursive) {
+    let delete_dialog =
+        cursive.call_on_id("topics", |topics: &mut SelectView<TopicMetadata>| {
+            topics.selected_id().and_then(|id| {
+                topics.get_item(id).map(|(topic, topic_metadata)| {
+                    let delete_verify =
+                        LinearLayout::horizontal()
+                            .child(TextView::new("foo"))
+                            .child(TextView::new(String::from(topic.clone())))
+                            .child(TextArea::new());
+
+                    Dialog::around(
+                        LinearLayout::vertical()
+                            .child(TextView::new("Delete Topic? Complete the name:"))
+                            .child(delete_verify))
+                        .title("Delete Topic")
+                        .button("Cancel", |cursive| cursive.pop_layer())
+                })
+            })
+        });
+
+    if let Some(Some(dialog)) = delete_dialog {
+        cursive.add_layer(dialog);
+    }
 }
 
