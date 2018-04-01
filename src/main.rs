@@ -123,16 +123,10 @@ fn delete_topic_callback(cursive: &mut Cursive) {
         cursive.call_on_id("topics", |topics: &mut SelectView<TopicMetadata>| {
             topics.selected_id().and_then(|id| {
                 topics.get_item(id).map(|(topic, topic_metadata)| {
-                    let delete_verify =
-                        LinearLayout::horizontal()
-                            .child(TextView::new("foo"))
-                            .child(TextView::new(String::from(topic.clone())))
-                            .child(TextArea::new());
-
                     Dialog::around(
                         LinearLayout::vertical()
                             .child(TextView::new("Delete Topic? Complete the name:"))
-                            .child(delete_verify))
+                            .child(delete_verification_view(topic)))
                         .title("Delete Topic")
                         .button("Cancel", |cursive| cursive.pop_layer())
                 })
@@ -142,5 +136,29 @@ fn delete_topic_callback(cursive: &mut Cursive) {
     if let Some(Some(dialog)) = delete_dialog {
         cursive.add_layer(dialog);
     }
+}
+
+fn delete_verification_view(topic: &str) -> LinearLayout {
+    let (head, tail) =
+        match topic.len() {
+            len if len <= 3 => ("", topic),
+            len => (&topic[0..len - 3], &topic[len - 3..])
+        };
+
+    let verification = move |accept: String| {
+        OnEventView::new(TextArea::new()).on_pre_event_inner(Key::Enter, move |textarea| {
+            if textarea.get_content().eq(accept.as_str()) {
+                println!("deleting"); // TODO consider impl actors for UI/Cursive and Kafka API
+                Some(EventResult::Consumed(None))
+            } else {
+                textarea.set_content("");
+                Some(EventResult::Consumed(None))
+            }
+        })
+    };
+
+    LinearLayout::horizontal()
+        .child(TextView::new(head))
+        .child(verification(String::from(tail)))
 }
 
