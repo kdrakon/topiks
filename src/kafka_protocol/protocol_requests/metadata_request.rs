@@ -2,10 +2,25 @@ use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
 use kafka_protocol::protocol_serializable::*;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
+use kafka_protocol::protocol_request::*;
 
 pub struct MetadataRequest {
     pub topics: Option<ProtocolArray<String>>,
     pub allow_auto_topic_creation: bool
+}
+
+impl MetadataRequest {
+    pub fn into_v5_request(self) -> Request<MetadataRequest> {
+        Request {
+            header: RequestHeader {
+                api_key: 3,
+                api_version: 5,
+                correlation_id: 42,
+                client_id: String::from("topiks"),
+            },
+            request_message: self,
+        }
+    }
 }
 
 impl ProtocolSerializable for MetadataRequest {

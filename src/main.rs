@@ -15,28 +15,24 @@ use kafka_protocol::protocol_requests::metadata_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::metadata_response::*;
 use kafka_protocol::protocol_serializable::*;
+use std::sync::mpsc;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub mod kafka_protocol;
 pub mod tcp_stream_util;
+pub mod main_channel;
 
 fn main() {
     let metadata_request = MetadataRequest { topics: None, allow_auto_topic_creation: false };
 
-    let request =
-        Request {
-            header: RequestHeader {
-                api_key: 3,
-                api_version: 5,
-                correlation_id: 42,
-                client_id: String::from("sean"),
-            },
-            request_message: metadata_request,
-        };
-
     let response: Response<MetadataResponse> =
-        tcp_stream_util::request("localhost:9092", request, |bytes| { bytes.into_protocol_type() }).unwrap();
+        tcp_stream_util::request("localhost:9092", metadata_request.into_v5_request(), |bytes| { bytes.into_protocol_type() }).unwrap();
 
-    let mut cursive = Cursive::new();
+    let mut shared_cursive = Arc::new(Mutex::new(Cursive::new()));
+    let sender = main_channel::of(shared_cursive.clone());
+    let mut cursive = shared_cursive.lock().unwrap();
+
     cursive.set_theme(Theme { shadow: false, borders: BorderStyle::Simple, palette: default_palette() });
     cursive.add_global_callback('q', |c| c.quit());
 
@@ -148,7 +144,7 @@ fn delete_verification_view(topic: &str) -> LinearLayout {
     let verification = move |accept: String| {
         OnEventView::new(TextArea::new()).on_pre_event_inner(Key::Enter, move |textarea| {
             if textarea.get_content().eq(accept.as_str()) {
-                println!("deleting"); // TODO consider impl actors for UI/Cursive and Kafka API
+                println!("deleting");
                 Some(EventResult::Consumed(None))
             } else {
                 textarea.set_content("");
