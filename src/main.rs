@@ -3,11 +3,11 @@ extern crate cursive;
 #[macro_use]
 extern crate proptest;
 
+use app_config::AppConfig;
 use cursive::align::*;
 use cursive::Cursive;
 use cursive::event::*;
 use cursive::theme::*;
-use cursive::traits::*;
 use cursive::view::Identifiable;
 use cursive::views::*;
 use kafka_protocol::protocol_request::*;
@@ -15,23 +15,21 @@ use kafka_protocol::protocol_requests::metadata_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::metadata_response::*;
 use kafka_protocol::protocol_serializable::*;
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::env;
 
 pub mod kafka_protocol;
 pub mod tcp_stream_util;
-pub mod main_channel;
+pub mod app_config;
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let app_config = app_config::from(&args);
+
     let metadata_request = MetadataRequest { topics: None, allow_auto_topic_creation: false };
-
     let response: Response<MetadataResponse> =
-        tcp_stream_util::request("localhost:9092", metadata_request.into_v5_request(), |bytes| { bytes.into_protocol_type() }).unwrap();
+        tcp_stream_util::request(app_config.bootstrap_server, metadata_request.into_v5_request(), |bytes| { bytes.into_protocol_type() }).unwrap();
 
-    let mut shared_cursive = Arc::new(Mutex::new(Cursive::new()));
-    let sender = main_channel::of(shared_cursive.clone());
-    let mut cursive = shared_cursive.lock().unwrap();
+    let mut cursive = Cursive::new();
 
     cursive.set_theme(Theme { shadow: false, borders: BorderStyle::Simple, palette: default_palette() });
     cursive.add_global_callback('q', |c| c.quit());
@@ -42,7 +40,7 @@ fn main() {
 
     let topics =
         OnEventView::new(topic_metadata_selectview(response.response_message.topic_metadata).with_id("topics"))
-            .on_pre_event('d', delete_topic_callback);
+            .on_pre_event('d', delete_topic_callback(&app_config));
 
     let mut info_view = StackView::new();
     info_view.add_fullscreen_layer(BoxView::with_full_screen(TextView::new("Topiks")));
@@ -114,47 +112,49 @@ fn topics_select_callback(cursive: &mut Cursive, topic_metadata: &TopicMetadata)
     });
 }
 
-fn delete_topic_callback(cursive: &mut Cursive) {
-    let delete_dialog =
-        cursive.call_on_id("topics", |topics: &mut SelectView<TopicMetadata>| {
-            topics.selected_id().and_then(|id| {
-                topics.get_item(id).map(|(topic, topic_metadata)| {
-                    Dialog::around(
-                        LinearLayout::vertical()
-                            .child(TextView::new("Delete Topic? Complete the name:"))
-                            .child(delete_verification_view(topic)))
-                        .title("Delete Topic")
-                        .button("Cancel", |cursive| cursive.pop_layer())
+fn delete_topic_callback(app_config: &AppConfig) -> fn(&mut Cursive) -> () {
+    |cursive: &mut Cursive| {
+        let delete_verification_view = |topic: &str| {
+            let (head, tail) =
+                match topic.len() {
+                    len if len <= 3 => ("", topic),
+                    len => (&topic[0..len - 3], &topic[len - 3..])
+                };
+
+            let verification = move |accept: String| {
+                OnEventView::new(TextArea::new()).on_pre_event_inner(Key::Enter, move |textarea| {
+                    if textarea.get_content().eq(accept.as_str()) {
+                        println!("deleting");
+                        Some(EventResult::Consumed(None))
+                    } else {
+                        textarea.set_content("");
+                        Some(EventResult::Consumed(None))
+                    }
                 })
-            })
-        });
+            };
 
-    if let Some(Some(dialog)) = delete_dialog {
-        cursive.add_layer(dialog);
-    }
-}
-
-fn delete_verification_view(topic: &str) -> LinearLayout {
-    let (head, tail) =
-        match topic.len() {
-            len if len <= 3 => ("", topic),
-            len => (&topic[0..len - 3], &topic[len - 3..])
+            LinearLayout::horizontal()
+                .child(TextView::new(head))
+                .child(verification(String::from(tail)))
         };
 
-    let verification = move |accept: String| {
-        OnEventView::new(TextArea::new()).on_pre_event_inner(Key::Enter, move |textarea| {
-            if textarea.get_content().eq(accept.as_str()) {
-                println!("deleting");
-                Some(EventResult::Consumed(None))
-            } else {
-                textarea.set_content("");
-                Some(EventResult::Consumed(None))
-            }
-        })
-    };
+        let delete_dialog =
+            cursive.call_on_id("topics", |topics: &mut SelectView<TopicMetadata>| {
+                topics.selected_id().and_then(|id| {
+                    topics.get_item(id).map(|(topic, _topic_metadata)| {
+                        Dialog::around(
+                            LinearLayout::vertical()
+                                .child(TextView::new("Delete Topic? Complete the name:"))
+                                .child(delete_verification_view(topic)))
+                            .title("Delete Topic")
+                            .button("Cancel", |cursive| cursive.pop_layer())
+                    })
+                })
+            });
 
-    LinearLayout::horizontal()
-        .child(TextView::new(head))
-        .child(verification(String::from(tail)))
+        if let Some(Some(dialog)) = delete_dialog {
+            cursive.add_layer(dialog);
+        }
+    }
 }
 
