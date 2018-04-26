@@ -9,20 +9,6 @@ pub struct MetadataRequest {
     pub allow_auto_topic_creation: bool
 }
 
-impl MetadataRequest {
-    pub fn into_v5_request(self) -> Request<MetadataRequest> {
-        Request {
-            header: RequestHeader {
-                api_key: 3,
-                api_version: 5,
-                correlation_id: 42,
-                client_id: String::from("topiks"),
-            },
-            request_message: self,
-        }
-    }
-}
-
 impl ProtocolSerializable for MetadataRequest {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
         let topic_bytes =
