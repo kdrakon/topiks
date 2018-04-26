@@ -12,8 +12,10 @@ use cursive::view::Identifiable;
 use cursive::views::*;
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::metadata_request::*;
+use kafka_protocol::protocol_requests::deletetopics_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::metadata_response::*;
+use kafka_protocol::protocol_responses::deletetopics_response::*;
 use kafka_protocol::protocol_serializable::*;
 use std::env;
 
@@ -25,9 +27,9 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let app_config = app_config::from(&args);
 
-    let metadata_request = MetadataRequest { topics: None, allow_auto_topic_creation: false };
+    let metadata_request = Request::of(MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5);
     let response: Response<MetadataResponse> =
-        tcp_stream_util::request(app_config.bootstrap_server, metadata_request.into_v5_request(), |bytes| { bytes.into_protocol_type() }).unwrap();
+        tcp_stream_util::request(app_config.bootstrap_server, metadata_request, |bytes| { bytes.into_protocol_type() }).unwrap();
 
     let mut cursive = Cursive::new();
 
