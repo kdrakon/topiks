@@ -12,8 +12,9 @@ impl TcpRequestError {
     pub fn of(error: String) -> TcpRequestError { TcpRequestError { error } }
 }
 
-pub fn request<A, T, U>(address: A, request: Request<T>, f: fn(Vec<u8>) -> ProtocolDeserializeResult<Response<U>>) -> Result<Response<U>, TcpRequestError>
-    where A: ToSocketAddrs, T: ProtocolSerializable {
+pub fn request<A, T, U>(address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>
+    where A: ToSocketAddrs, T: ProtocolSerializable, Vec<u8>: ProtocolDeserializable<Response<U>> {
+
     let response =
         request.into_protocol_bytes().and_then(|bytes| {
             TcpStream::connect(address).and_then(|mut stream| {
@@ -32,6 +33,6 @@ pub fn request<A, T, U>(address: A, request: Request<T>, f: fn(Vec<u8>) -> Proto
     response
         .map_err(|e| TcpRequestError::of(format!("{}", e.description())))
         .and_then(|bytes| {
-            f(bytes).map_err(|e| TcpRequestError::of(e.error))
+            bytes.into_protocol_type().map_err(|e| TcpRequestError::of(e.error))
         })
 }
