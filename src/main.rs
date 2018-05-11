@@ -39,13 +39,20 @@ fn main() {
     let stdin = stdin();
     ui::clear_screen();
 
-    sender.send(Message::GetTopics(BootstrapServer(String::from(app_config.bootstrap_server))));
+    let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
+    sender.send(Message::GetTopics(bootstrap_server()));
 
     for c in stdin.keys() {
         match c.unwrap() {
             Key::Char('q') => {
                 ui::clear_screen();
                 break;
+            },
+            Key::Char('r') => {
+                sender.send(Message::GetTopics(bootstrap_server()));
+            },
+            Key::Char('d') => {
+                sender.send(Message::DeleteTopic(bootstrap_server()));
             },
             Key::Up => {
                 sender.send(Message::SelectTopic(Up));
