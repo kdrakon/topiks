@@ -8,9 +8,10 @@ pub struct DeleteTopicsResponse {
     pub topic_error_codes: Vec<TopicErrorCode>
 }
 
+#[derive(Debug)]
 pub struct TopicErrorCode {
-    topic: String,
-    error_code: i16
+    pub topic: String,
+    pub error_code: i16
 }
 
 impl ProtocolDeserializable<Response<DeleteTopicsResponse>> for Vec<u8> {
@@ -55,7 +56,7 @@ fn deserialize_topic_error_codes(bytes: Vec<u8>) -> ProtocolDeserializeResult<Dy
         de_i16(remaining_bytes[0..2].to_vec()).map(|error_code| {
             (
                 TopicErrorCode { topic, error_code },
-                remaining_bytes
+                remaining_bytes[2..].to_vec()
             )
         })
     })
