@@ -4,8 +4,9 @@ extern crate proptest;
 extern crate termion;
 
 use app_config::AppConfig;
-use event_bus::Message;
 use event_bus::BootstrapServer;
+use event_bus::MoveSelection::*;
+use event_bus::Message;
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::deletetopics_request::*;
 use kafka_protocol::protocol_requests::metadata_request::*;
@@ -16,23 +17,43 @@ use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_serializable::*;
 use std::env;
 use std::io;
+use std::io::{stdin, stdout, Write};
 use std::sync::mpsc::Sender;
 use termion::{color, style};
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
 
 pub mod kafka_protocol;
 pub mod tcp_stream_util;
 pub mod app_config;
 pub mod event_bus;
+pub mod ui;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     let app_config = app_config::from(&args);
     let sender = event_bus::start();
 
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+    ui::clear_screen();
+
     sender.send(Message::GetTopics(BootstrapServer(String::from(app_config.bootstrap_server))));
 
-    std::thread::sleep_ms(5000);
+    for c in stdin.keys() {
+        match c.unwrap() {
+            Key::Char('q') => {
+                ui::clear_screen();
+                break;
+            },
+            Key::Up => {
+                sender.send(Message::SelectTopic(Up));
+            },
+            Key::Down => {
+                sender.send(Message::SelectTopic(Down));
+            },
+            _ => {}
+        }
+    }
 }
-
-
-
