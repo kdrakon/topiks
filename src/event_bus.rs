@@ -13,6 +13,8 @@ use std::thread;
 use tcp_stream_util;
 use tcp_stream_util::TcpRequestError;
 use ui;
+use kafka_protocol::protocol_requests::deletetopics_request::DeleteTopicsRequest;
+use kafka_protocol::protocol_responses::deletetopics_response::DeleteTopicsResponse;
 
 pub struct BootstrapServer(pub String);
 pub enum MoveSelection {
@@ -22,29 +24,35 @@ pub enum MoveSelection {
 pub enum Message {
     GetTopics(BootstrapServer),
     SelectTopic(MoveSelection),
-    DeleteTopic(BootstrapServer, String),
+    DeleteTopic(BootstrapServer),
 }
 
 pub enum Event {
     Error(String),
     ListTopics(Response<MetadataResponse>),
-    TopicSelected(fn(&State) -> usize)
+    TopicSelected(fn(&State) -> usize),
+    TopicDeleted(Box<Fn(&State) -> (usize, bool)>)
 }
 
+#[derive(Clone)]
 pub struct State {
     pub metadata: Option<MetadataResponse>,
     pub selected_index: usize,
+    pub marked_deleted: Vec<usize>
 }
 
 impl State {
     fn new() -> State {
-        State { metadata: None, selected_index: 0 }
+        State { metadata: None, selected_index: 0, marked_deleted: vec![] }
     }
     fn with_metadata(&self, metadata: MetadataResponse) -> State {
-        State { metadata: Some(metadata.clone()), selected_index: self.selected_index }
+        State { metadata: Some(metadata.clone()), selected_index: self.selected_index, marked_deleted: self.marked_deleted.clone() }
     }
     fn with_selected_index(&self, selected_index: usize) -> State {
-        State { metadata: self.metadata.clone(), selected_index }
+        State { metadata: self.metadata.clone(), selected_index, marked_deleted: self.marked_deleted.clone() }
+    }
+    fn with_marked_deleted(&self, marked_deleted: Vec<usize>) -> State {
+        State { metadata: self.metadata.clone(), selected_index: self.selected_index, marked_deleted }
     }
 }
 
@@ -95,8 +103,33 @@ fn to_event(message: Message) -> Option<Event> {
             }
         },
 
-        DeleteTopic(bootstrap, topic) => {
-            None
+        DeleteTopic(BootstrapServer(bootstrap)) => {
+            Some(TopicDeleted(Box::from(move |state: &State| {
+                match state.metadata {
+                    Some(ref metadata) => {
+                        match metadata.topic_metadata.get(state.selected_index) {
+                            Some(delete_topic_metadata) => {
+                                let result: Result<Response<DeleteTopicsResponse>, TcpRequestError> = tcp_stream_util::request(
+                                    bootstrap.clone(),
+                                    Request::of(DeleteTopicsRequest { topics: vec![delete_topic_metadata.topic.clone()], timeout: 30_000 }, 20, 1)
+                                );
+
+                                match result {
+                                    Ok(response) => {
+                                        (state.selected_index, response.response_message.topic_error_codes.iter().all(|err|err.error_code == 0))
+                                    },
+                                    Err(err) => {
+                                        eprintln!("{}", err.error);
+                                        (state.selected_index, false)
+                                    }
+                                }
+                            }
+                            None => (state.selected_index, false)
+                        }
+                    }
+                    None => (state.selected_index, false)
+                }
+            })))
         }
     }
 }
@@ -105,7 +138,11 @@ fn update_state(event: Event, current_state: &State) -> Option<State> {
     match event {
         Error(_) => None,
         ListTopics(response) => Some(current_state.with_metadata(response.response_message)),
-        TopicSelected(change_fn) => Some(current_state.with_selected_index(change_fn(current_state)))
+        TopicSelected(select_fn) => Some(current_state.with_selected_index(select_fn(current_state))),
+        TopicDeleted(boxed_delete_fn) => {
+            let (selected, deleted) = boxed_delete_fn(current_state);
+            if deleted { Some(current_state.with_marked_deleted(vec![selected])) } else { None }
+        }
     }
 }
 
