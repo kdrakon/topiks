@@ -24,6 +24,7 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
+pub mod utils;
 pub mod kafka_protocol;
 pub mod tcp_stream_util;
 pub mod app_config;
