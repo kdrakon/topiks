@@ -137,7 +137,7 @@ fn to_event(message: Message) -> Option<Event> {
 fn update_state(event: Event, current_state: &State) -> Option<State> {
     match event {
         Error(_) => None,
-        ListTopics(response) => Some(current_state.with_metadata(response.response_message)),
+        ListTopics(response) => Some(current_state.with_metadata(response.response_message).with_marked_deleted(vec![])),
         TopicSelected(select_fn) => Some(current_state.with_selected_index(select_fn(current_state))),
         TopicDeleted(boxed_delete_fn) => {
             let (selected, deleted) = boxed_delete_fn(current_state);
