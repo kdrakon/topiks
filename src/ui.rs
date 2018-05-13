@@ -1,15 +1,15 @@
-use event_bus::State;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
+use state::State;
 use std::io::{stdin, stdout};
+use std::thread;
 use termion;
-use termion::terminal_size;
 use termion::color;
 use termion::color::Color;
 use termion::cursor;
 use termion::raw::IntoRawMode;
 use termion::style;
-use std::thread;
+use termion::terminal_size;
 use utils;
 
 pub fn update_with_state(state: &State) {
@@ -18,7 +18,11 @@ pub fn update_with_state(state: &State) {
 
     if let Some(ref metadata) = state.metadata {
         clear_screen();
-        show_topics(metadata, state.selected_index, &state.marked_deleted, (width, height));
+        if state.show_selected_topic_info {
+            show_topic_info();
+        } else {
+            show_topics(metadata, state.selected_index, &state.marked_deleted, (width, height));
+        }
     }
 }
 
@@ -49,5 +53,8 @@ fn show_topics(metadata: &MetadataResponse, selected_index: usize, marked_delete
             }
         }
     })
+}
 
+fn show_topic_info() {
+    println!("info goes here");
 }

@@ -5,8 +5,8 @@ extern crate termion;
 
 use app_config::AppConfig;
 use event_bus::BootstrapServer;
-use event_bus::MoveSelection::*;
 use event_bus::Message;
+use event_bus::MoveSelection::*;
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::deletetopics_request::*;
 use kafka_protocol::protocol_requests::metadata_request::*;
@@ -29,6 +29,7 @@ pub mod kafka_protocol;
 pub mod tcp_stream_util;
 pub mod app_config;
 pub mod event_bus;
+pub mod state;
 pub mod ui;
 
 fn main() {
@@ -60,6 +61,9 @@ fn main() {
             },
             Key::Down => {
                 sender.send(Message::SelectTopic(Down));
+            },
+            Key::Char('i') => {
+                sender.send(Message::ToggleTopicInfo());
             },
             _ => {}
         }
