@@ -51,7 +51,7 @@ fn show_topics(screen: &mut AlternateScreen<Stdout>, metadata: &MetadataResponse
             }
         } else {
             if delete_style(&index) {
-                write!(screen, "{}{}{}{}", color::Fg(color::Red), style::Underline, topic_label, style::Reset);
+                write!(screen, "{}{}{}{}", color::Fg(color::Green), color::Bg(color::Red), topic_label, style::Reset);
             } else {
                 write!(screen, "{}{}{}", color::Fg(color::Cyan), topic_label, style::Reset);
             }

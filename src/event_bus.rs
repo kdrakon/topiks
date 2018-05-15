@@ -125,7 +125,14 @@ fn update_state(event: Event, current_state: &State) -> Option<State> {
         TopicSelected(select_fn) => Some(current_state.with_selected_index(select_fn(current_state))),
         TopicDeleted(boxed_delete_fn) => {
             let (selected, deleted) = boxed_delete_fn(current_state);
-            if deleted { Some(current_state.with_marked_deleted(vec![selected])) } else { None }
+            match deleted {
+                false => None,
+                true => {
+                    let mut deleted = current_state.marked_deleted.clone();
+                    deleted.push(selected);
+                    Some(current_state.with_marked_deleted(deleted))
+                }
+            }
         }
         InfoToggled(toggle_fn) => Some(current_state.with_show_selected_topic_info(toggle_fn(current_state)))
     }
