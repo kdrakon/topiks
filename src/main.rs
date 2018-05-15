@@ -23,6 +23,7 @@ use termion::{color, style};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
+use termion::screen::AlternateScreen;
 
 pub mod utils;
 pub mod kafka_protocol;
@@ -37,17 +38,15 @@ fn main() {
     let app_config = app_config::from(&args);
     let sender = event_bus::start();
 
-    let mut stdout = stdout().into_raw_mode().unwrap();
+    let mut stdout = stdout().into_raw_mode().unwrap(); // raw mode to avoid screen output
     let stdin = stdin();
-    ui::clear_screen();
 
     let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
     sender.send(Message::GetTopics(bootstrap_server()));
 
-    for c in stdin.keys() {
-        match c.unwrap() {
+    for key in stdin.keys() {
+        match key.unwrap() {
             Key::Char('q') => {
-                ui::clear_screen();
                 break;
             },
             Key::Char('r') => {
