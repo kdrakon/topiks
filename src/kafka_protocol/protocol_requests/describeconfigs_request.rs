@@ -40,3 +40,28 @@ impl ProtocolSerializable for Resource {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use kafka_protocol::protocol_requests::describeconfigs_request::*;
+
+    fn verify_serde_for_describeconfigs_request(name_a: String, name_b: String) {
+        let resources = vec![
+            Resource { resource_type: 1, resource_name: name_a, config_names: String::from("foo") },
+            Resource { resource_type: 1, resource_name: name_b, config_names: String::from("bar") }
+        ];
+        let request = DescribeConfigsRequest { resources, include_synonyms: false };
+        match request.into_protocol_bytes() {
+            Ok(bytes) => (),
+            Err(e) => panic!(e)
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn verify_serde_for_describeconfigs_request_props(ref name_a in ".*", ref name_b in ".*") {
+            verify_serde_for_describeconfigs_request(name_a.to_string(), name_b.to_string())
+        }
+    }
+}
