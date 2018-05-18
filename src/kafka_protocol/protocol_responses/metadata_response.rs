@@ -38,24 +38,6 @@ pub struct PartitionMetadata {
     pub offline_replicas: Vec<i32>,
 }
 
-impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
-    fn into_protocol_type(self) -> ProtocolDeserializeResult<Response<MetadataResponse>> {
-        let fields: ProtocolDeserializeResult<(ResponseHeader, MetadataResponse)> =
-            self[0..4].to_vec().into_protocol_type().and_then(|header| {
-                self[4..].to_vec().into_protocol_type().map(|response_message| {
-                    (header, response_message)
-                })
-            });
-
-        fields.map(|(header, response_message)| {
-            Response {
-                header,
-                response_message,
-            }
-        })
-    }
-}
-
 impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<MetadataResponse> {
         let result =
