@@ -14,24 +14,6 @@ pub struct TopicErrorCode {
     pub error_code: i16
 }
 
-impl ProtocolDeserializable<Response<DeleteTopicsResponse>> for Vec<u8> {
-    fn into_protocol_type(self) -> ProtocolDeserializeResult<Response<DeleteTopicsResponse>> {
-        let fields: ProtocolDeserializeResult<(ResponseHeader, DeleteTopicsResponse)> =
-            self[0..4].to_vec().into_protocol_type().and_then(|header| {
-                self[4..].to_vec().into_protocol_type().map(|response_message| {
-                    (header, response_message)
-                })
-            });
-
-        fields.map(|(header, response_message)| {
-            Response {
-                header,
-                response_message,
-            }
-        })
-    }
-}
-
 impl ProtocolDeserializable<DeleteTopicsResponse> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<DeleteTopicsResponse> {
         de_i32(self[0..4].to_vec()).and_then(|throttle_time_ms| {

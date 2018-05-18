@@ -10,6 +10,17 @@ pub struct Response<T> {
     pub response_message: T,
 }
 
+impl<T> ProtocolDeserializable<Response<T>> for Vec<u8>
+    where Vec<u8>: ProtocolDeserializable<T> {
+    fn into_protocol_type(self) -> ProtocolDeserializeResult<Response<T>> {
+        ProtocolDeserializable::<ResponseHeader>::into_protocol_type(self[0..4].to_vec()).and_then(|header| {
+            ProtocolDeserializable::<T>::into_protocol_type(self[4..].to_vec()).map(|response_message| {
+                Response { header, response_message }
+            })
+        })
+    }
+}
+
 /// Header information for a Response
 ///
 #[derive(Debug)]

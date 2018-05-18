@@ -30,24 +30,6 @@ pub struct ConfigSynonym {
     config_source: i8,
 }
 
-//impl ProtocolDeserializable<Response<DescribeConfigsResponse>> for Vec<u8> {
-//    fn into_protocol_type(self) -> ProtocolDeserializeResult<Response<DescribeConfigsResponse>> {
-//        let fields: ProtocolDeserializeResult<(ResponseHeader, DescribeConfigsResponse)> =
-//            self[0..4].to_vec().into_protocol_type().and_then(|header| {
-//                self[4..].to_vec().into_protocol_type().map(|response_message| {
-//                    (header, response_message)
-//                })
-//            });
-//
-//        fields.map(|(header, response_message)| {
-//            Response {
-//                header,
-//                response_message,
-//            }
-//        })
-//    }
-//}
-
 impl ProtocolDeserializable<DescribeConfigsResponse> for Vec<u8> {
     fn into_protocol_type(self) -> Result<DescribeConfigsResponse, DeserializeError> {
         de_i32(self[0..=3].to_vec()).and_then(|throttle_time_ms| {
