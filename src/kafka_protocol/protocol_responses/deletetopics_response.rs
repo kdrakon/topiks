@@ -18,7 +18,7 @@ impl ProtocolDeserializable<DeleteTopicsResponse> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<DeleteTopicsResponse> {
         de_i32(self[0..4].to_vec()).and_then(|throttle_time_ms| {
 
-            let topic_error_codes: ProtocolDeserializeResult<DynamicType<Vec<TopicErrorCode>>> =
+            let topic_error_codes: ProtocolDeserializeResult<DynamicSize<Vec<TopicErrorCode>>> =
                 de_array(self[4..].to_vec(), deserialize_topic_error_codes);
 
             topic_error_codes.map(|(topic_error_codes, remaining_bytes)|{
@@ -32,7 +32,7 @@ impl ProtocolDeserializable<DeleteTopicsResponse> for Vec<u8> {
     }
 }
 
-fn deserialize_topic_error_codes(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<TopicErrorCode>> {
+fn deserialize_topic_error_codes(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<TopicErrorCode>> {
     de_string(bytes).and_then(|(topic, remaining_bytes)| {
         let topic = topic.expect("Unexpected missing topic name in TopicErrorCode");
         de_i16(remaining_bytes[0..2].to_vec()).map(|error_code| {
