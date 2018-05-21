@@ -9,6 +9,8 @@ use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::deletetopics_response::DeleteTopicsResponse;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use state::*;
+use std::cell::RefCell;
+use std::cell::RefMut;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
@@ -40,12 +42,12 @@ pub fn start() -> Sender<Message> {
     let (sender, receiver): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     thread::spawn(move || {
-        let mut state = State::new();
+        let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
         for message in receiver {
-            if let Some(updated_state) = to_event(message).and_then(|event| update_state(event, &state)) {
-                state = updated_state;
+            if let Some(updated_state) = to_event(message).and_then(|event| update_state(event, state.borrow_mut())) {
+                state.swap(&RefCell::new(updated_state));
             }
-            ui::update_with_state(&state);
+            ui::update_with_state(&state.borrow());
         }
     });
 
@@ -118,23 +120,32 @@ fn to_event(message: Message) -> Option<Event> {
     }
 }
 
-fn update_state(event: Event, current_state: &State) -> Option<State> {
+fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State> {
     match event {
         Error(_) => None,
-        ListTopics(response) => Some(current_state.with_metadata(response.response_message).with_marked_deleted(vec![])),
-        TopicSelected(select_fn) => Some(current_state.with_selected_index(select_fn(current_state))),
+        ListTopics(response) => {
+            current_state.metadata = Some(response.response_message);
+            current_state.marked_deleted = vec![];
+            Some(current_state.clone())
+        }
+        TopicSelected(select_fn) => {
+            current_state.selected_index = select_fn(&current_state);
+            Some(current_state.clone())
+        }
         TopicDeleted(boxed_delete_fn) => {
-            let (selected, deleted) = boxed_delete_fn(current_state);
+            let (selected, deleted) = boxed_delete_fn(&current_state);
             match deleted {
                 false => None,
                 true => {
-                    let mut deleted = current_state.marked_deleted.clone();
-                    deleted.push(selected);
-                    Some(current_state.with_marked_deleted(deleted))
+                    current_state.marked_deleted.push(selected);
+                    Some(current_state.clone())
                 }
             }
         }
-        InfoToggled(toggle_fn) => Some(current_state.with_show_selected_topic_info(toggle_fn(current_state)))
+        InfoToggled(toggle_fn) => {
+            current_state.show_selected_topic_info = toggle_fn(&current_state);
+            Some(current_state.clone())
+        }
     }
 }
 
