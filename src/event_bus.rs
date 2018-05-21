@@ -4,9 +4,13 @@ use event_bus::Message::*;
 use event_bus::MoveSelection::*;
 use kafka_protocol::protocol_request::Request;
 use kafka_protocol::protocol_requests::deletetopics_request::DeleteTopicsRequest;
+use kafka_protocol::protocol_requests::describeconfigs_request::DescribeConfigsRequest;
+use kafka_protocol::protocol_requests::describeconfigs_request::Resource;
+use kafka_protocol::protocol_requests::describeconfigs_request::ResourceTypes;
 use kafka_protocol::protocol_requests::metadata_request::MetadataRequest;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::deletetopics_response::DeleteTopicsResponse;
+use kafka_protocol::protocol_responses::describeconfigs_response::DescribeConfigsResponse;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use state::*;
 use std::cell::RefCell;
@@ -27,7 +31,7 @@ pub enum Message {
     GetTopics(BootstrapServer),
     SelectTopic(MoveSelection),
     DeleteTopic(BootstrapServer),
-    ToggleTopicInfo(),
+    ToggleTopicInfo(BootstrapServer)
 }
 
 enum Event {
@@ -35,7 +39,7 @@ enum Event {
     ListTopics(Response<MetadataResponse>),
     TopicSelected(fn(&State) -> usize),
     TopicDeleted(Box<Fn(&State) -> (usize, bool)>),
-    InfoToggled(fn(&State) -> bool),
+    InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>)
 }
 
 pub fn start() -> Sender<Message> {
@@ -91,10 +95,11 @@ fn to_event(message: Message) -> Option<Event> {
                     Some(ref metadata) => {
                         match metadata.topic_metadata.get(state.selected_index) {
                             Some(delete_topic_metadata) => {
-                                let result: Result<Response<DeleteTopicsResponse>, TcpRequestError> = tcp_stream_util::request(
-                                    bootstrap.clone(),
-                                    Request::of(DeleteTopicsRequest { topics: vec![delete_topic_metadata.topic.clone()], timeout: 30_000 }, 20, 1),
-                                );
+                                let result: Result<Response<DeleteTopicsResponse>, TcpRequestError> =
+                                    tcp_stream_util::request(
+                                        bootstrap.clone(),
+                                        Request::of(DeleteTopicsRequest { topics: vec![delete_topic_metadata.topic.clone()], timeout: 30_000 }, 20, 1),
+                                    );
 
                                 match result {
                                     Ok(response) => {
@@ -114,9 +119,33 @@ fn to_event(message: Message) -> Option<Event> {
             })))
         }
 
-        ToggleTopicInfo() => Some(InfoToggled(move |state| {
-            !state.show_selected_topic_info
-        }))
+        ToggleTopicInfo(BootstrapServer(bootstrap)) =>
+            Some(InfoToggled(Box::from(move |state: &State| {
+                match state.topic_info_state {
+                    Some(_) => None,
+                    None => {
+                        let resource = Resource {
+                            resource_type: ResourceTypes::Topic as i8,
+                            resource_name: state.selected_topic_name(),
+                            config_names: None,
+                        };
+                        let result: Result<Response<DescribeConfigsResponse>, TcpRequestError> =
+                            tcp_stream_util::request(
+                                bootstrap.clone(),
+                                Request::of(DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
+                            );
+                        match result {
+                            Ok(response) => {
+                                Some(TopicInfoState { config_info: response.response_message.resources })
+                            },
+                            Err(err) => {
+                                eprintln!("{}", err.error);
+                                None
+                            }
+                        }
+                    }
+                }
+            })))
     }
 }
 
@@ -143,7 +172,7 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
             }
         }
         InfoToggled(toggle_fn) => {
-            current_state.show_selected_topic_info = toggle_fn(&current_state);
+            current_state.topic_info_state = toggle_fn(&current_state);
             Some(current_state.clone())
         }
     }

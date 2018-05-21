@@ -23,7 +23,7 @@ pub fn update_with_state(state: &State) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
 
     if let Some(ref metadata) = state.metadata {
-        if state.show_selected_topic_info {
+        if let Some(ref topic_info) = state.topic_info_state {
             show_topic_info(screen, metadata.topic_metadata.get(state.selected_index), (width, height));
         } else {
             show_topics(screen, metadata, state.selected_index, &state.marked_deleted, (width, height));
