@@ -7,7 +7,7 @@ pub struct DescribeConfigsResponse {
     pub resources: Vec<Resource>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Resource {
     error_code: i16,
     error_message: Option<String>,
@@ -16,7 +16,7 @@ pub struct Resource {
     config_entries: Vec<ConfigEntry>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ConfigEntry {
     config_name: String,
     config_value: Option<String>,
@@ -26,7 +26,7 @@ pub struct ConfigEntry {
     config_synonyms: Vec<ConfigSynonym>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ConfigSynonym {
     config_name: String,
     config_value: Option<String>,

@@ -11,8 +11,17 @@ pub struct DescribeConfigsRequest {
 #[derive(Clone)]
 pub struct Resource {
     pub resource_type: i8,
-    pub resource_name: String,
-    pub config_names: String
+    pub resource_name: Option<String>,
+    pub config_names: Option<String>
+}
+
+pub enum ResourceTypes {
+    Unknown = 0,
+    Any = 1,
+    Topic = 2,
+    Group = 3,
+    Cluster = 4,
+    Broker = 5,
 }
 
 impl ProtocolSerializable for DescribeConfigsRequest {
@@ -48,8 +57,9 @@ mod tests {
 
     fn verify_serde_for_describeconfigs_request(name_a: String, name_b: String) {
         let resources = vec![
-            Resource { resource_type: 1, resource_name: name_a, config_names: String::from("foo") },
-            Resource { resource_type: 1, resource_name: name_b, config_names: String::from("bar") }
+            Resource { resource_type: 1, resource_name: Some(name_a), config_names: Some(String::from("foo")) },
+            Resource { resource_type: 1, resource_name: Some(name_b), config_names: Some(String::from("bar")) },
+            Resource { resource_type: 1, resource_name: None, config_names: None }
         ];
         let request = DescribeConfigsRequest { resources, include_synonyms: false };
         match request.into_protocol_bytes() {
