@@ -16,6 +16,12 @@ pub enum ProtocolPrimitives {
     Boolean(bool),
 }
 
+impl ProtocolPrimitives {
+    pub fn null() -> ProtocolPrimitives {
+        I32(-1) // indicates null length
+    }
+}
+
 /// Wrapper to a vector for convenience with
 /// ProtocolSerializable
 ///
@@ -37,6 +43,15 @@ impl ProtocolSerializable for String {
             string_size.append(&mut string_bytes);
             Ok(string_size)
         })
+    }
+}
+
+impl ProtocolSerializable for Option<String> {
+    fn into_protocol_bytes(self) -> ProtocolSerializeResult {
+        match self {
+            Some(string) => string.into_protocol_bytes(),
+            None => ProtocolPrimitives::null().into_protocol_bytes()
+        }
     }
 }
 

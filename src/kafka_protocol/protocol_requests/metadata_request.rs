@@ -14,7 +14,7 @@ impl ProtocolSerializable for MetadataRequest {
         let topic_bytes =
             match self.topics.clone() {
                 Some(topics) => topics.into_protocol_bytes(),
-                None => I32(-1).into_protocol_bytes()
+                None => ProtocolPrimitives::null().into_protocol_bytes()
             };
 
         topic_bytes.and_then(|mut t| {
