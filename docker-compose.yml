@@ -2,7 +2,7 @@ version: '3.3'
 
 services:
   zookeeper:
-    image: 'confluentinc/cp-zookeeper:4.0.0'
+    image: 'confluentinc/cp-zookeeper:4.1.0'
     restart: always
     hostname: zookeeper
     ports:
@@ -19,7 +19,7 @@ services:
       - "moby:127.0.0.1"
 
   broker:
-    image: 'confluentinc/cp-kafka:4.0.0'
+    image: 'confluentinc/cp-kafka:4.1.0'
     hostname: broker
     stop_grace_period: 120s
     depends_on:
