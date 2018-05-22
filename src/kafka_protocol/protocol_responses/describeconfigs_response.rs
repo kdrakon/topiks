@@ -9,28 +9,28 @@ pub struct DescribeConfigsResponse {
 
 #[derive(Clone, Debug)]
 pub struct Resource {
-    error_code: i16,
-    error_message: Option<String>,
-    resource_type: i8,
-    resource_name: String,
-    config_entries: Vec<ConfigEntry>,
+    pub error_code: i16,
+    pub error_message: Option<String>,
+    pub resource_type: i8,
+    pub resource_name: String,
+    pub config_entries: Vec<ConfigEntry>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ConfigEntry {
-    config_name: String,
-    config_value: Option<String>,
-    read_only: bool,
-    config_source: i8,
-    is_sensitive: bool,
-    config_synonyms: Vec<ConfigSynonym>,
+    pub config_name: String,
+    pub config_value: Option<String>,
+    pub read_only: bool,
+    pub config_source: i8,
+    pub is_sensitive: bool,
+    pub config_synonyms: Vec<ConfigSynonym>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ConfigSynonym {
-    config_name: String,
-    config_value: Option<String>,
-    config_source: i8,
+    pub config_name: String,
+    pub config_value: Option<String>,
+    pub config_source: i8,
 }
 
 impl ProtocolDeserializable<DescribeConfigsResponse> for Vec<u8> {
@@ -46,7 +46,7 @@ impl ProtocolDeserializable<DescribeConfigsResponse> for Vec<u8> {
 
 fn deserialize_resource(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<Resource>> {
     de_i16(bytes[0..=1].to_vec()).and_then(|error_code| {
-        de_string(bytes[1..].to_vec()).and_then(|(error_message, bytes)| {
+        de_string(bytes[2..].to_vec()).and_then(|(error_message, bytes)| {
             Ok((bytes[0] as i8, bytes[1..].to_vec())).and_then(|(resource_type, bytes)| {
                 de_string(bytes).and_then(|(resource_name, bytes)| {
                     de_array(bytes, deserialize_config_entry).map(|(config_entries, bytes)| {
