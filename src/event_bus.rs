@@ -11,6 +11,7 @@ use kafka_protocol::protocol_requests::metadata_request::MetadataRequest;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::deletetopics_response::DeleteTopicsResponse;
 use kafka_protocol::protocol_responses::describeconfigs_response::DescribeConfigsResponse;
+use kafka_protocol::protocol_responses::describeconfigs_response::Resource as ResponseResource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use state::*;
 use std::cell::RefCell;
@@ -31,7 +32,7 @@ pub enum Message {
     GetTopics(BootstrapServer),
     SelectTopic(MoveSelection),
     DeleteTopic(BootstrapServer),
-    ToggleTopicInfo(BootstrapServer)
+    ToggleTopicInfo(BootstrapServer),
 }
 
 enum Event {
@@ -39,7 +40,7 @@ enum Event {
     ListTopics(Response<MetadataResponse>),
     TopicSelected(fn(&State) -> usize),
     TopicDeleted(Box<Fn(&State) -> (usize, bool)>),
-    InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>)
+    InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>),
 }
 
 pub fn start() -> Sender<Message> {
@@ -136,8 +137,18 @@ fn to_event(message: Message) -> Option<Event> {
                             );
                         match result {
                             Ok(response) => {
-                                Some(TopicInfoState { config_info: response.response_message.resources })
-                            },
+                                state.selected_topic_metadata().and_then(|topic_metadata| {
+                                    let resource = response.response_message.resources
+                                        .into_iter()
+                                        .filter(|resource| resource.resource_name.eq(&state.selected_topic_name().unwrap()))
+                                        .collect::<Vec<ResponseResource>>();
+
+                                    match resource.first() {
+                                        None => None,
+                                        Some(resource) => Some(TopicInfoState { topic_metadata, config_resource: resource.clone() })
+                                    }
+                                })
+                            }
                             Err(err) => {
                                 eprintln!("{}", err.error);
                                 None

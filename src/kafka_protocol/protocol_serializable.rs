@@ -5,6 +5,7 @@ use std::error::Error;
 use std::io::Cursor;
 use std::io::Result as IOResult;
 use std::str::from_utf8;
+use utils;
 
 /// If implemented, a struct/enum can be sent on the wire to a
 /// Kafka broker.
@@ -80,7 +81,7 @@ pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<Option
 
                 match from_utf8(string_bytes) {
                     Ok(string) => Ok((Some(String::from(string)), remaining_bytes)),
-                    _ => Err(DeserializeError::of(String::from("Failed to deserialize string")))
+                    _ => Err(DeserializeError::of(format!("Failed to deserialize string {:?}", utils::to_hex_array(&string_bytes.to_vec()))))
                 }
             }
         }
