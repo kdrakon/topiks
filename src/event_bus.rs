@@ -4,11 +4,18 @@ use event_bus::Message::*;
 use event_bus::MoveSelection::*;
 use kafka_protocol::protocol_request::Request;
 use kafka_protocol::protocol_requests::deletetopics_request::DeleteTopicsRequest;
+use kafka_protocol::protocol_requests::describeconfigs_request::DescribeConfigsRequest;
+use kafka_protocol::protocol_requests::describeconfigs_request::Resource;
+use kafka_protocol::protocol_requests::describeconfigs_request::ResourceTypes;
 use kafka_protocol::protocol_requests::metadata_request::MetadataRequest;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::deletetopics_response::DeleteTopicsResponse;
+use kafka_protocol::protocol_responses::describeconfigs_response::DescribeConfigsResponse;
+use kafka_protocol::protocol_responses::describeconfigs_response::Resource as ResponseResource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use state::*;
+use std::cell::RefCell;
+use std::cell::RefMut;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
@@ -25,7 +32,7 @@ pub enum Message {
     GetTopics(BootstrapServer),
     SelectTopic(MoveSelection),
     DeleteTopic(BootstrapServer),
-    ToggleTopicInfo(),
+    ToggleTopicInfo(BootstrapServer),
 }
 
 enum Event {
@@ -33,19 +40,19 @@ enum Event {
     ListTopics(Response<MetadataResponse>),
     TopicSelected(fn(&State) -> usize),
     TopicDeleted(Box<Fn(&State) -> (usize, bool)>),
-    InfoToggled(fn(&State) -> bool),
+    InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>),
 }
 
 pub fn start() -> Sender<Message> {
     let (sender, receiver): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     thread::spawn(move || {
-        let mut state = State::new();
+        let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
         for message in receiver {
-            if let Some(updated_state) = to_event(message).and_then(|event| update_state(event, &state)) {
-                state = updated_state;
+            if let Some(updated_state) = to_event(message).and_then(|event| update_state(event, state.borrow_mut())) {
+                state.swap(&RefCell::new(updated_state));
             }
-            ui::update_with_state(&state);
+            ui::update_with_state(&state.borrow());
         }
     });
 
@@ -89,10 +96,11 @@ fn to_event(message: Message) -> Option<Event> {
                     Some(ref metadata) => {
                         match metadata.topic_metadata.get(state.selected_index) {
                             Some(delete_topic_metadata) => {
-                                let result: Result<Response<DeleteTopicsResponse>, TcpRequestError> = tcp_stream_util::request(
-                                    bootstrap.clone(),
-                                    Request::of(DeleteTopicsRequest { topics: vec![delete_topic_metadata.topic.clone()], timeout: 30_000 }, 20, 1),
-                                );
+                                let result: Result<Response<DeleteTopicsResponse>, TcpRequestError> =
+                                    tcp_stream_util::request(
+                                        bootstrap.clone(),
+                                        Request::of(DeleteTopicsRequest { topics: vec![delete_topic_metadata.topic.clone()], timeout: 30_000 }, 20, 1),
+                                    );
 
                                 match result {
                                     Ok(response) => {
@@ -112,22 +120,72 @@ fn to_event(message: Message) -> Option<Event> {
             })))
         }
 
-        ToggleTopicInfo() => Some(InfoToggled(move |state| {
-            !state.show_selected_topic_info
-        }))
+        ToggleTopicInfo(BootstrapServer(bootstrap)) =>
+            Some(InfoToggled(Box::from(move |state: &State| {
+                match state.topic_info_state {
+                    Some(_) => None,
+                    None => {
+                        let resource = Resource {
+                            resource_type: ResourceTypes::Topic as i8,
+                            resource_name: state.selected_topic_name(),
+                            config_names: None,
+                        };
+                        let result: Result<Response<DescribeConfigsResponse>, TcpRequestError> =
+                            tcp_stream_util::request(
+                                bootstrap.clone(),
+                                Request::of(DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
+                            );
+                        match result {
+                            Ok(response) => {
+                                state.selected_topic_metadata().and_then(|topic_metadata| {
+                                    let resource = response.response_message.resources
+                                        .into_iter()
+                                        .filter(|resource| resource.resource_name.eq(&state.selected_topic_name().unwrap()))
+                                        .collect::<Vec<ResponseResource>>();
+
+                                    match resource.first() {
+                                        None => None,
+                                        Some(resource) => Some(TopicInfoState { topic_metadata, config_resource: resource.clone() })
+                                    }
+                                })
+                            }
+                            Err(err) => {
+                                eprintln!("{}", err.error);
+                                None
+                            }
+                        }
+                    }
+                }
+            })))
     }
 }
 
-fn update_state(event: Event, current_state: &State) -> Option<State> {
+fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State> {
     match event {
         Error(_) => None,
-        ListTopics(response) => Some(current_state.with_metadata(response.response_message).with_marked_deleted(vec![])),
-        TopicSelected(select_fn) => Some(current_state.with_selected_index(select_fn(current_state))),
-        TopicDeleted(boxed_delete_fn) => {
-            let (selected, deleted) = boxed_delete_fn(current_state);
-            if deleted { Some(current_state.with_marked_deleted(vec![selected])) } else { None }
+        ListTopics(response) => {
+            current_state.metadata = Some(response.response_message);
+            current_state.marked_deleted = vec![];
+            Some(current_state.clone())
         }
-        InfoToggled(toggle_fn) => Some(current_state.with_show_selected_topic_info(toggle_fn(current_state)))
+        TopicSelected(select_fn) => {
+            current_state.selected_index = select_fn(&current_state);
+            Some(current_state.clone())
+        }
+        TopicDeleted(boxed_delete_fn) => {
+            let (selected, deleted) = boxed_delete_fn(&current_state);
+            match deleted {
+                false => None,
+                true => {
+                    current_state.marked_deleted.push(selected);
+                    Some(current_state.clone())
+                }
+            }
+        }
+        InfoToggled(toggle_fn) => {
+            current_state.topic_info_state = toggle_fn(&current_state);
+            Some(current_state.clone())
+        }
     }
 }
 

@@ -38,24 +38,6 @@ pub struct PartitionMetadata {
     pub offline_replicas: Vec<i32>,
 }
 
-impl ProtocolDeserializable<Response<MetadataResponse>> for Vec<u8> {
-    fn into_protocol_type(self) -> ProtocolDeserializeResult<Response<MetadataResponse>> {
-        let fields: ProtocolDeserializeResult<(ResponseHeader, MetadataResponse)> =
-            self[0..4].to_vec().into_protocol_type().and_then(|header| {
-                self[4..].to_vec().into_protocol_type().map(|response_message| {
-                    (header, response_message)
-                })
-            });
-
-        fields.map(|(header, response_message)| {
-            Response {
-                header,
-                response_message,
-            }
-        })
-    }
-}
-
 impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<MetadataResponse> {
         let result =
@@ -93,7 +75,7 @@ impl ProtocolDeserializable<MetadataResponse> for Vec<u8> {
     }
 }
 
-fn deserialize_broker_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<BrokerMetadata>> {
+fn deserialize_broker_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<BrokerMetadata>> {
     let result =
         de_i32(bytes[0..4].to_vec()).and_then(|node_id| {
             de_string(bytes[4..].to_vec()).map(|(host, remaining_bytes)| {
@@ -116,7 +98,7 @@ fn deserialize_broker_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<Dyna
     })
 }
 
-fn deserialize_topic_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<TopicMetadata>> {
+fn deserialize_topic_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<TopicMetadata>> {
     de_i16(bytes[0..2].to_vec()).and_then(|error_code| {
         de_string(bytes[2..].to_vec()).map(|(topic, remaining_bytes)| {
             let topic = topic.expect("Unexpected empty topic name");
@@ -130,7 +112,7 @@ fn deserialize_topic_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<Dynam
     })
 }
 
-fn deserialize_partition_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<PartitionMetadata>> {
+fn deserialize_partition_metadata(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<PartitionMetadata>> {
     de_i16(bytes[0..2].to_vec()).and_then(|error_code| {
         de_i32(bytes[2..6].to_vec()).and_then((|partition| {
             de_i32(bytes[6..10].to_vec()).and_then(|leader| {

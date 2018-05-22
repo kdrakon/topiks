@@ -62,7 +62,7 @@ fn main() {
                 sender.send(Message::SelectTopic(Down));
             },
             Key::Char('i') => {
-                sender.send(Message::ToggleTopicInfo());
+                sender.send(Message::ToggleTopicInfo(bootstrap_server()));
             },
             _ => {}
         }

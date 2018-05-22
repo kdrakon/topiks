@@ -5,6 +5,7 @@ use std::error::Error;
 use std::io::Cursor;
 use std::io::Result as IOResult;
 use std::str::from_utf8;
+use utils;
 
 /// If implemented, a struct/enum can be sent on the wire to a
 /// Kafka broker.
@@ -38,10 +39,10 @@ pub fn de_i16(bytes: Vec<u8>) -> ProtocolDeserializeResult<i16> {
     Cursor::new(bytes).read_i16::<BigEndian>().map_err(|e| DeserializeError::of(e.description().to_string()))
 }
 
-pub type DynamicType<T> = (T, Vec<u8>); // Vec<u8> == remaining bytes after
+pub type DynamicSize<T> = (T, Vec<u8>); // Vec<u8> == remaining bytes after
 
-pub fn de_array<T, F>(bytes: Vec<u8>, deserialize_t: F) -> ProtocolDeserializeResult<DynamicType<Vec<T>>>
-    where F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicType<T>> {
+pub fn de_array<T, F>(bytes: Vec<u8>, deserialize_t: F) -> ProtocolDeserializeResult<DynamicSize<Vec<T>>>
+    where F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<T>> {
 
     let array_size = de_i32(bytes[0..4].to_vec());
     array_size.and_then(|expected_elements| {
@@ -50,8 +51,8 @@ pub fn de_array<T, F>(bytes: Vec<u8>, deserialize_t: F) -> ProtocolDeserializeRe
     })
 }
 
-fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> ProtocolDeserializeResult<DynamicType<Vec<T>>>
-    where F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicType<T>> {
+fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> ProtocolDeserializeResult<DynamicSize<Vec<T>>>
+    where F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<T>> {
 
     if elements <= 0 {
         Ok((vec![] as Vec<T>, bytes))
@@ -69,7 +70,7 @@ fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> 
     }
 }
 
-pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<Option<String>>> {
+pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<Option<String>>> {
     de_i16(bytes[0..2].to_vec()).and_then(|byte_length|{
         match byte_length {
             -1 => Ok((None, bytes[2..].to_vec())),
@@ -80,7 +81,7 @@ pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicType<Option
 
                 match from_utf8(string_bytes) {
                     Ok(string) => Ok((Some(String::from(string)), remaining_bytes)),
-                    _ => Err(DeserializeError::of(String::from("Failed to deserialize string")))
+                    _ => Err(DeserializeError::of(format!("Failed to deserialize string {:?}", utils::to_hex_array(&string_bytes.to_vec()))))
                 }
             }
         }
