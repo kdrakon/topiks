@@ -8,13 +8,13 @@ use std::net::*;
 
 #[derive(Debug)]
 pub struct TcpRequestError { pub error: String }
+
 impl TcpRequestError {
     pub fn of(error: String) -> TcpRequestError { TcpRequestError { error } }
 }
 
 pub fn request<A, T, U>(address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>
     where A: ToSocketAddrs, T: ProtocolSerializable, Vec<u8>: ProtocolDeserializable<Response<U>> {
-
     let response =
         request.into_protocol_bytes().and_then(|bytes| {
             TcpStream::connect(address).and_then(|mut stream| {
@@ -33,6 +33,7 @@ pub fn request<A, T, U>(address: A, request: Request<T>) -> Result<Response<U>, 
     response
         .map_err(|e| TcpRequestError::of(format!("{}", e.description())))
         .and_then(|bytes| {
+//            println!("bytes: {:?}", utils::to_hex_array(&bytes));
             bytes.into_protocol_type().map_err(|e| TcpRequestError::of(e.error))
         })
 }

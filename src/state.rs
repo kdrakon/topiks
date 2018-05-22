@@ -1,27 +1,40 @@
+use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
+use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
 
 #[derive(Clone)]
 pub struct State {
     pub metadata: Option<MetadataResponse>,
     pub selected_index: usize,
-    pub show_selected_topic_info: bool,
-    pub marked_deleted: Vec<usize>
+    pub marked_deleted: Vec<usize>,
+    pub topic_info_state: Option<TopicInfoState>
 }
 
 impl State {
+
     pub fn new() -> State {
-        State { metadata: None, selected_index: 0, marked_deleted: vec![], show_selected_topic_info: false }
+        State { metadata: None, selected_index: 0, marked_deleted: vec![], topic_info_state: None }
     }
-    pub fn with_metadata(&self, metadata: MetadataResponse) -> State {
-        State { metadata: Some(metadata.clone()), selected_index: self.selected_index, marked_deleted: self.marked_deleted.clone(), show_selected_topic_info: self.show_selected_topic_info }
+
+    pub fn selected_topic_name(&self) -> Option<String> {
+        self.metadata.iter().map(|metadata|{
+            metadata.topic_metadata.get(self.selected_index).map(|m|{
+                m.topic.clone()
+            })
+        }).collect::<Option<String>>()
     }
-    pub fn with_selected_index(&self, selected_index: usize) -> State {
-        State { metadata: self.metadata.clone(), selected_index, marked_deleted: self.marked_deleted.clone(), show_selected_topic_info: self.show_selected_topic_info }
+
+    pub fn selected_topic_metadata(&self) -> Option<TopicMetadata> {
+        self.metadata.clone().and_then(|metadata|{
+            metadata.topic_metadata.get(self.selected_index).map(|topic_metadata|{
+                topic_metadata.clone()
+            })
+        })
     }
-    pub fn with_marked_deleted(&self, marked_deleted: Vec<usize>) -> State {
-        State { metadata: self.metadata.clone(), selected_index: self.selected_index, marked_deleted, show_selected_topic_info: self.show_selected_topic_info }
-    }
-    pub fn with_show_selected_topic_info(&self, show_selected_topic_info: bool) -> State {
-        State { metadata: self.metadata.clone(), selected_index: self.selected_index, marked_deleted: self.marked_deleted.clone(), show_selected_topic_info }
-    }
+}
+
+#[derive(Clone)]
+pub struct TopicInfoState {
+    pub topic_metadata: TopicMetadata,
+    pub config_resource: Resource
 }
