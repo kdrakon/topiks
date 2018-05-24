@@ -1,10 +1,10 @@
 extern crate byteorder;
 
+use kafka_protocol::protocol_serializable::*;
+use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 use self::byteorder::{BigEndian, WriteBytesExt};
 use self::ProtocolPrimitives::*;
 use std::io::*;
-use kafka_protocol::protocol_serializable::*;
-use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
 /// Primitive types supported by Kafka protocol.
 /// Primarily wrapped for convenience with ProtocolSerializable.
@@ -20,20 +20,6 @@ impl ProtocolPrimitives {
     // indicates null length
     pub fn null_bytes() -> ProtocolPrimitives { I32(-1) }
     pub fn null_string() -> ProtocolPrimitives { I16(-1) }
-}
-
-/// Wrapper to a vector for convenience with
-/// ProtocolSerializable
-///
-#[derive(Clone)]
-pub struct ProtocolArray<T> {
-    array: Vec<T>
-}
-
-impl<T> ProtocolArray<T> {
-    pub fn of(array: Vec<T>) -> ProtocolArray<T> {
-        ProtocolArray { array }
-    }
 }
 
 impl ProtocolSerializable for String {
@@ -69,14 +55,14 @@ impl ProtocolSerializable for ProtocolPrimitives {
     }
 }
 
-impl<T> ProtocolSerializable for ProtocolArray<T>
+impl<T> ProtocolSerializable for Vec<T>
     where T: ProtocolSerializable {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
         let array_length =
-            I32(self.array.len() as i32).into_protocol_bytes();
+            I32(self.len() as i32).into_protocol_bytes();
 
         let sequenced =
-            self.array.into_iter().map(|t| {
+            self.into_iter().map(|t| {
                 t.into_protocol_bytes()
             }).collect::<Result<Vec<Vec<u8>>>>();
 
@@ -97,22 +83,32 @@ impl<T> ProtocolSerializable for ProtocolArray<T>
     }
 }
 
+impl<T> ProtocolSerializable for Option<Vec<T>>
+    where T: ProtocolSerializable {
+    fn into_protocol_bytes(self) -> ProtocolSerializeResult {
+        match self {
+            Some(array) => array.into_protocol_bytes(),
+            None => ProtocolPrimitives::null_bytes().into_protocol_bytes()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn verify_array_and_primitives() {
-        assert_eq!(vec![0, 0, 0, 3, 1, 2, 3], ProtocolArray::of(vec![I8(1),I8(2),I8(3)]).into_protocol_bytes().unwrap());
-        assert_eq!(vec![0, 0, 0, 3, 0, 1, 0, 2, 0, 3], ProtocolArray::of(vec![I16(1),I16(2),I16(3)]).into_protocol_bytes().unwrap());
-        assert_eq!(vec![0, 0, 0, 1, 0, 0, 0, 255], ProtocolArray::of(vec![I32(255)]).into_protocol_bytes().unwrap());
-        assert_eq!(vec![0, 0, 0, 1, 0, 1, 0, 0], ProtocolArray::of(vec![I32(65536)]).into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 3, 1, 2, 3], vec![I8(1), I8(2), I8(3)].into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 3, 0, 1, 0, 2, 0, 3], vec![I16(1), I16(2), I16(3)].into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 1, 0, 0, 0, 255], vec![I32(255)].into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 1, 0, 1, 0, 0], vec![I32(65536)].into_protocol_bytes().unwrap());
 
-        assert_eq!(vec![0, 0, 0, 1, 1], ProtocolArray::of(vec![Boolean(true)]).into_protocol_bytes().unwrap());
-        assert_eq!(vec![0, 0, 0, 2, 0, 1], ProtocolArray::of(vec![Boolean(false), Boolean(true)]).into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 1, 1], vec![Boolean(true)].into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 2, 0, 1], vec![Boolean(false), Boolean(true)].into_protocol_bytes().unwrap());
 
         // array of 2, string of 3, 3 characters, string of 3, 3 characters
         assert_eq!(vec![0, 0, 0, 2, 0, 3, 102, 111, 111, 0, 3, 98, 97, 114],
-                   ProtocolArray::of(vec![String::from("foo"), String::from("bar")]).into_protocol_bytes().unwrap());
+                   vec![String::from("foo"), String::from("bar")].into_protocol_bytes().unwrap());
     }
 }
