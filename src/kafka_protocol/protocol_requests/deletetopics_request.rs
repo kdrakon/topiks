@@ -10,8 +10,7 @@ pub struct DeleteTopicsRequest {
 
 impl ProtocolSerializable for DeleteTopicsRequest {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
-        let topics_bytes =
-            ProtocolArray::of(self.topics.clone()).into_protocol_bytes();
+        let topics_bytes = self.topics.clone().into_protocol_bytes();
 
         topics_bytes.and_then(|mut t| {
             I32(self.timeout).into_protocol_bytes().map(|ref mut a| {

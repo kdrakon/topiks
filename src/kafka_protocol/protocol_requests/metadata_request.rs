@@ -5,7 +5,7 @@ use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 use kafka_protocol::protocol_request::*;
 
 pub struct MetadataRequest {
-    pub topics: Option<ProtocolArray<String>>,
+    pub topics: Option<Vec<String>>,
     pub allow_auto_topic_creation: bool
 }
 
@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn verify_request() {
-        let topics: Option<ProtocolArray<String>> = Some(ProtocolArray::of(vec![]));
+        let topics: Option<Vec<String>> = Some(vec![]);
         let metadata_request = MetadataRequest { topics, allow_auto_topic_creation: false };
 
         let request: Request<MetadataRequest> =
@@ -54,10 +54,10 @@ mod tests {
 
     #[test]
     fn verify_metadata_request() {
-        let topics = Some(ProtocolArray::of(vec! {
+        let topics = Some(vec! {
             String::from("my_kafka_topic_1"),
             String::from("my_kafka_topic_2")
-        }));
+        });
         let metadata_request = MetadataRequest { topics, allow_auto_topic_creation: true };
         let expected: Vec<u8> = vec![0, 0, 0, 2,
                                      0, 16, 0x6D, 0x79, 0x5F, 0x6B, 0x61, 0x66, 0x6B, 0x61, 0x5F, 0x74, 0x6F, 0x70, 0x69, 0x63, 0x5F, 0x31,

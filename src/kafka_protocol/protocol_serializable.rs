@@ -124,7 +124,7 @@ mod tests {
         #[test]
         fn verify_de_array(ref a in ".*", ref b in ".*", ref c in ".*") {
 
-            let array = ProtocolArray::of(vec![a.clone(), b.clone(), c.clone()]);
+            let array = vec![a.clone(), b.clone(), c.clone()];
             let bytes = array.into_protocol_bytes().unwrap();
             let result =
                 de_array(bytes, |element| {

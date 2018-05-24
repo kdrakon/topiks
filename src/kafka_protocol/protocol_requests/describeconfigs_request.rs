@@ -1,4 +1,3 @@
-use kafka_protocol::protocol_primitives::ProtocolArray;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives;
 use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
@@ -12,7 +11,7 @@ pub struct DescribeConfigsRequest {
 pub struct Resource {
     pub resource_type: i8,
     pub resource_name: Option<String>,
-    pub config_names: Option<String>
+    pub config_names: Option<Vec<String>>
 }
 
 pub enum ResourceTypes {
@@ -26,7 +25,7 @@ pub enum ResourceTypes {
 
 impl ProtocolSerializable for DescribeConfigsRequest {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
-        let resources = ProtocolArray::of(self.resources.clone()).into_protocol_bytes();
+        let resources = self.resources.clone().into_protocol_bytes();
         resources.and_then(|mut resources| {
             ProtocolPrimitives::Boolean(self.include_synonyms).into_protocol_bytes().map(|ref mut include_synonyms|{
                 resources.append(include_synonyms);
@@ -57,8 +56,8 @@ mod tests {
 
     fn verify_serde_for_describeconfigs_request(name_a: String, name_b: String) {
         let resources = vec![
-            Resource { resource_type: 1, resource_name: Some(name_a), config_names: Some(String::from("foo")) },
-            Resource { resource_type: 1, resource_name: Some(name_b), config_names: Some(String::from("bar")) },
+            Resource { resource_type: 1, resource_name: Some(name_a), config_names: Some(vec![String::from("foo")]) },
+            Resource { resource_type: 1, resource_name: Some(name_b), config_names: Some(vec![String::from("bar")]) },
             Resource { resource_type: 1, resource_name: None, config_names: None }
         ];
         let request = DescribeConfigsRequest { resources, include_synonyms: false };
