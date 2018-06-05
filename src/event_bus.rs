@@ -126,7 +126,7 @@ fn to_event(message: Message) -> Option<Event> {
                     None => {
                         let resource = Resource {
                             resource_type: ResourceTypes::Topic as i8,
-                            resource_name: state.selected_topic_name(),
+                            resource_name: state.selected_topic_name().expect("failure to get topic name"),
                             config_names: None,
                         };
                         let result: Result<Response<DescribeConfigsResponse>, TcpRequestError> =

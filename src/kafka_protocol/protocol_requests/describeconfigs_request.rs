@@ -10,7 +10,7 @@ pub struct DescribeConfigsRequest {
 #[derive(Clone)]
 pub struct Resource {
     pub resource_type: i8,
-    pub resource_name: Option<String>,
+    pub resource_name: String,
     pub config_names: Option<Vec<String>>
 }
 
@@ -56,9 +56,9 @@ mod tests {
 
     fn verify_serde_for_describeconfigs_request(name_a: String, name_b: String) {
         let resources = vec![
-            Resource { resource_type: 1, resource_name: Some(name_a), config_names: Some(vec![String::from("foo")]) },
-            Resource { resource_type: 1, resource_name: Some(name_b), config_names: Some(vec![String::from("bar")]) },
-            Resource { resource_type: 1, resource_name: None, config_names: None }
+            Resource { resource_type: 1, resource_name: name_a.clone(), config_names: Some(vec![String::from("foo")]) },
+            Resource { resource_type: 1, resource_name: name_b, config_names: Some(vec![String::from("bar")]) },
+            Resource { resource_type: 1, resource_name: name_a, config_names: None }
         ];
         let request = DescribeConfigsRequest { resources, include_synonyms: false };
         match request.into_protocol_bytes() {
