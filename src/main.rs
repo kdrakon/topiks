@@ -31,7 +31,7 @@ pub mod tcp_stream_util;
 pub mod app_config;
 pub mod event_bus;
 pub mod state;
-pub mod ui;
+pub mod user_interface;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

@@ -22,7 +22,7 @@ use std::sync::mpsc::Sender;
 use std::thread;
 use tcp_stream_util;
 use tcp_stream_util::TcpRequestError;
-use ui;
+use user_interface::ui;
 
 pub struct BootstrapServer(pub String);
 
@@ -39,7 +39,7 @@ enum Event {
     Error(String),
     ListTopics(Response<MetadataResponse>),
     TopicSelected(fn(&State) -> usize),
-    TopicDeleted(Box<Fn(&State) -> (usize, bool)>),
+    TopicDeleted(Box<Fn(&State) -> Option<String>>),
     InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>),
 }
 
@@ -92,31 +92,30 @@ fn to_event(message: Message) -> Option<Event> {
 
         DeleteTopic(BootstrapServer(bootstrap)) => {
             Some(TopicDeleted(Box::from(move |state: &State| {
-                match state.metadata {
-                    Some(ref metadata) => {
-                        match metadata.topic_metadata.get(state.selected_index) {
-                            Some(delete_topic_metadata) => {
-                                let result: Result<Response<DeleteTopicsResponse>, TcpRequestError> =
-                                    tcp_stream_util::request(
-                                        bootstrap.clone(),
-                                        Request::of(DeleteTopicsRequest { topics: vec![delete_topic_metadata.topic.clone()], timeout: 30_000 }, 20, 1),
-                                    );
+                state.metadata.as_ref().and_then(|metadata| {
+                    metadata.topic_metadata.get(state.selected_index).and_then(|delete_topic_metadata| {
+                        let delete_topic_name = delete_topic_metadata.topic.clone();
+                        let result: Result<Response<DeleteTopicsResponse>, TcpRequestError> =
+                            tcp_stream_util::request(
+                                bootstrap.clone(),
+                                Request::of(DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }, 20, 1),
+                            );
 
-                                match result {
-                                    Ok(response) => {
-                                        (state.selected_index, response.response_message.topic_error_codes.iter().all(|err| err.error_code == 0))
-                                    }
-                                    Err(err) => {
-                                        eprintln!("{}", err.error);
-                                        (state.selected_index, false)
-                                    }
+                        match result {
+                            Ok(response) => {
+                                if response.response_message.topic_error_codes.iter().all(|err| err.error_code == 0) {
+                                    Some(delete_topic_name)
+                                } else {
+                                    None
                                 }
                             }
-                            None => (state.selected_index, false)
+                            Err(err) => {
+                                eprintln!("{}", err.error);
+                                None
+                            }
                         }
-                    }
-                    None => (state.selected_index, false)
-                }
+                    })
+                })
             })))
         }
 
@@ -173,11 +172,11 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
             Some(current_state.clone())
         }
         TopicDeleted(boxed_delete_fn) => {
-            let (selected, deleted) = boxed_delete_fn(&current_state);
-            match deleted {
-                false => None,
-                true => {
-                    current_state.marked_deleted.push(selected);
+            let deleted_name = boxed_delete_fn(&current_state);
+            match deleted_name {
+                None => None,
+                Some(deleted_name) => {
+                    current_state.marked_deleted.push(deleted_name);
                     Some(current_state.clone())
                 }
             }
