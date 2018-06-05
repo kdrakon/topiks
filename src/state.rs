@@ -6,7 +6,7 @@ use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
 pub struct State {
     pub metadata: Option<MetadataResponse>,
     pub selected_index: usize,
-    pub marked_deleted: Vec<usize>,
+    pub marked_deleted: Vec<String>,
     pub topic_info_state: Option<TopicInfoState>
 }
 

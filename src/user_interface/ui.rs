@@ -1,3 +1,4 @@
+use kafka_protocol::protocol_responses::describeconfigs_response::ConfigEntry;
 use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
@@ -17,10 +18,14 @@ use termion::style;
 use termion::terminal_size;
 use utils;
 use utils::pad_right;
-use kafka_protocol::protocol_responses::describeconfigs_response::ConfigEntry;
+use user_interface::topic_list::ListItem::Selected;
+use user_interface::topic_list::ListItem::Deleted;
+use user_interface::topic_list::ListItem::Normal;
+use user_interface::topic_list::ListItem;
+use user_interface::topic_list::TopicList;
+use user_interface::topic_list::PagedVec;
 
 pub fn update_with_state(state: &State) {
-
     let screen = &mut AlternateScreen::from(stdout());
 
     let (width, height): (u16, u16) = terminal_size().unwrap();
@@ -36,35 +41,29 @@ pub fn update_with_state(state: &State) {
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
 
-fn show_topics(screen: &mut AlternateScreen<Stdout>, metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<usize>, (width, height): (u16, u16)) {
+fn show_topics(screen: &mut AlternateScreen<Stdout>, metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>, (width, height): (u16, u16)) {
+    let paged = PagedVec::from(&metadata.topic_metadata, height as usize);
 
-    let indexes = (0..metadata.topic_metadata.len());
-    let indexed: Vec<(&TopicMetadata, usize)> = metadata.topic_metadata.iter().zip(indexes).collect();
-    let delete_style = |i: &usize| marked_deleted.contains(i);
+    if let Some((page_index, page)) = paged.page(selected_index) {
+        let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&TopicMetadata, usize)>>();
 
-    indexed.iter().for_each(|&(topic, index)| {
+        let list_items =
+            indexed.iter().map(|&(topic_metadata, index)| {
+                let topic_name = topic_metadata.topic.clone();
+                if page_index == index {
+                    Selected(topic_name)
+                } else if marked_deleted.contains(&topic_name) {
+                    Deleted(topic_name)
+                } else {
+                    Normal(topic_name)
+                }
+            }).collect::<Vec<ListItem>>();
 
-        let topic_label = pad_right(&topic.topic, width);
-        let line = index + 1;
-        if selected_index == index {
-            if delete_style(&index) {
-                write!(screen, "{}{}{}{}{}", color::Fg(color::Black), color::Bg(color::White), style::Underline, topic_label, style::Reset);
-            } else {
-                write!(screen, "{}{}{}{}", color::Fg(color::Black), color::Bg(color::White), topic_label, style::Reset);
-            }
-        } else {
-            if delete_style(&index) {
-                write!(screen, "{}{}{}{}", color::Fg(color::Green), color::Bg(color::Red), topic_label, style::Reset);
-            } else {
-                write!(screen, "{}{}{}", color::Fg(color::Cyan), topic_label, style::Reset);
-            }
-        }
-    });
+        (TopicList { list: list_items }).display(screen, (1, 1));
+    }
 }
 
 fn show_topic_info(screen: &mut AlternateScreen<Stdout>, topic_info: &TopicInfoState, (width, height): (u16, u16)) {
-
-    let na = "n/a";
     let ref topic_metadata = topic_info.topic_metadata;
     let ref config_resource = topic_info.config_resource;
 
@@ -84,8 +83,8 @@ fn show_topic_info(screen: &mut AlternateScreen<Stdout>, topic_info: &TopicInfoS
     // configs
     write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset);
     let longest_config_name_len = config_resource.config_entries.iter().map(|config_entry| config_entry.config_name.len()).max().unwrap();
-    config_resource.config_entries.iter().cloned().for_each(|config_entry|{
+    config_resource.config_entries.iter().cloned().for_each(|config_entry| {
         let config_name = pad_right(&config_entry.config_name, (longest_config_name_len as u16) + 1);
-        write!(screen, "{}", pad_right(&format!("{}: {}", config_name, config_entry.config_value.unwrap_or(String::from(na))), width));
+        write!(screen, "{}", pad_right(&format!("{}: {}", config_name, config_entry.config_value.unwrap_or(String::from("n/a"))), width));
     });
 }
