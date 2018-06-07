@@ -24,6 +24,9 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
+use termion::terminal_size;
+use user_interface::user_input;
+use event_bus::TopicFilter::*;
 
 pub mod utils;
 pub mod kafka_protocol;
@@ -38,7 +41,8 @@ fn main() {
     let app_config = app_config::from(&args);
     let sender = event_bus::start();
 
-    let mut stdout = stdout().into_raw_mode().unwrap(); // raw mode to avoid screen output
+    let mut stdout = std::io::stdout().into_raw_mode().unwrap(); // raw mode to avoid screen output
+    let screen = &mut AlternateScreen::from(std::io::stdout());
     let stdin = stdin();
 
     let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
@@ -47,23 +51,33 @@ fn main() {
     for key in stdin.keys() {
         match key.unwrap() {
             Key::Char('q') => {
+                write!(screen, "{}", termion::clear::All);
+                screen.flush().unwrap();
                 break;
-            },
+            }
             Key::Char('r') => {
                 sender.send(Message::GetTopics(bootstrap_server()));
-            },
+            }
             Key::Char('d') => {
                 sender.send(Message::DeleteTopic(bootstrap_server()));
-            },
+            }
             Key::Up => {
                 sender.send(Message::SelectTopic(Up));
-            },
+            }
             Key::Down => {
                 sender.send(Message::SelectTopic(Down));
-            },
+            }
             Key::Char('i') => {
                 sender.send(Message::ToggleTopicInfo(bootstrap_server()));
-            },
+            }
+            Key::Char('/') => {
+                let (width, height) = terminal_size().unwrap();
+                let filter = match user_input::read(screen,"/",(1, height)) {
+                    Some(filter) => Message::FilterTopics(Filter(filter)),
+                    None => Message::FilterTopics(NoFilter)
+                };
+                sender.send(filter);
+            }
             _ => {}
         }
     }

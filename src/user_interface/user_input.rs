@@ -1,13 +1,13 @@
 use std;
 use std::io::{stdin, stdout, Write};
+use std::io::Stdout;
 use termion::{cursor, style};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::screen::AlternateScreen;
 
-pub fn read(cursor_symbol: &str, (cursor_x, cursor_y): (u16, u16)) -> Option<String> {
+pub fn read(screen: &mut AlternateScreen<Stdout>, cursor_symbol: &str, (cursor_x, cursor_y): (u16, u16)) -> Option<String> {
 
-    let screen = &mut AlternateScreen::from(std::io::stdout());
     let stdin = std::io::stdin();
 
     let mut input: Vec<char> = vec![];

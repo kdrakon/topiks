@@ -16,21 +16,26 @@ use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use state::*;
 use std::cell::RefCell;
 use std::cell::RefMut;
+use std::io::stdout;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
 use tcp_stream_util;
 use tcp_stream_util::TcpRequestError;
+use termion::screen::AlternateScreen;
 use user_interface::ui;
 
 pub struct BootstrapServer(pub String);
 
 pub enum MoveSelection { Up, Down }
 
+pub enum TopicFilter { NoFilter, Filter(String) }
+
 pub enum Message {
     GetTopics(BootstrapServer),
     SelectTopic(MoveSelection),
+    FilterTopics(TopicFilter),
     DeleteTopic(BootstrapServer),
     ToggleTopicInfo(BootstrapServer),
 }
@@ -47,12 +52,14 @@ pub fn start() -> Sender<Message> {
     let (sender, receiver): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     thread::spawn(move || {
+        let screen = &mut AlternateScreen::from(stdout()); // a single alternate screen for all UI to write to
         let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
+
         for message in receiver {
             if let Some(updated_state) = to_event(message).and_then(|event| update_state(event, state.borrow_mut())) {
                 state.swap(&RefCell::new(updated_state));
             }
-            ui::update_with_state(&state.borrow());
+            ui::update_with_state(&state.borrow(), screen);
         }
     });
 
@@ -90,6 +97,11 @@ fn to_event(message: Message) -> Option<Event> {
             }
         }
 
+        FilterTopics(filter) => {
+            // TODO
+            None
+        }
+
         DeleteTopic(BootstrapServer(bootstrap)) => {
             Some(TopicDeleted(Box::from(move |state: &State| {
                 state.metadata.as_ref().and_then(|metadata| {
@@ -119,7 +131,7 @@ fn to_event(message: Message) -> Option<Event> {
             })))
         }
 
-        ToggleTopicInfo(BootstrapServer(bootstrap)) =>
+        ToggleTopicInfo(BootstrapServer(bootstrap)) => {
             Some(InfoToggled(Box::from(move |state: &State| {
                 match state.topic_info_state {
                     Some(_) => None,
@@ -156,6 +168,7 @@ fn to_event(message: Message) -> Option<Event> {
                     }
                 }
             })))
+        }
     }
 }
 
