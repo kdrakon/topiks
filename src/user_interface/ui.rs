@@ -16,20 +16,17 @@ use termion::raw::RawTerminal;
 use termion::screen::AlternateScreen;
 use termion::style;
 use termion::terminal_size;
+use user_interface::topic_list::ListItem;
+use user_interface::topic_list::ListItem::*;
+use user_interface::topic_list::PagedVec;
+use user_interface::topic_list::TopicList;
 use utils;
 use utils::pad_right;
-use user_interface::topic_list::ListItem::Selected;
-use user_interface::topic_list::ListItem::Deleted;
-use user_interface::topic_list::ListItem::Normal;
-use user_interface::topic_list::ListItem;
-use user_interface::topic_list::TopicList;
-use user_interface::topic_list::PagedVec;
 
-pub fn update_with_state(state: &State) {
-    let screen = &mut AlternateScreen::from(stdout());
-
+pub fn update_with_state(state: &State, screen: &mut AlternateScreen<Stdout>) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
 
+    write!(screen, "{}", termion::clear::All);
     if let Some(ref metadata) = state.metadata {
         if let Some(ref topic_info) = state.topic_info_state {
             show_topic_info(screen, topic_info, (width, height));
@@ -42,7 +39,7 @@ pub fn update_with_state(state: &State) {
 }
 
 fn show_topics(screen: &mut AlternateScreen<Stdout>, metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>, (width, height): (u16, u16)) {
-    let paged = PagedVec::from(&metadata.topic_metadata, height as usize);
+    let paged = PagedVec::from(&metadata.topic_metadata, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(selected_index) {
         let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&TopicMetadata, usize)>>();
