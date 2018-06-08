@@ -24,9 +24,9 @@ use utils;
 use utils::pad_right;
 
 pub fn update_with_state(state: &State) {
-    let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap()); // a single alternate screen for all UI to write to
+    let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
     let (width, height): (u16, u16) = terminal_size().unwrap();
-    write!(screen, "{}", termion::clear::All);
+    write!(screen, "{}", termion::clear::All).unwrap();
 
     if let Some(ref metadata) = state.metadata {
         if let Some(ref topic_info) = state.topic_info_state {
@@ -66,23 +66,23 @@ fn show_topic_info(screen: &mut AlternateScreen<RawTerminal<Stdout>>, topic_info
     let ref config_resource = topic_info.config_resource;
 
     // header
-    write!(screen, "{}{}{}", style::Bold, pad_right(&format!("Topic: {}", &topic_metadata.topic), width), style::Reset);
-    write!(screen, "{}", pad_right(&format!("Internal: {}", &(utils::bool_yes_no(topic_metadata.is_internal))), width));
+    write!(screen, "{}{}{}", style::Bold, pad_right(&format!("Topic: {}", &topic_metadata.topic), width), style::Reset).unwrap();
+    write!(screen, "{}", pad_right(&format!("Internal: {}", &(utils::bool_yes_no(topic_metadata.is_internal))), width)).unwrap();
 
     // partitions
-    write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Partitions"), width), style::Reset);
+    write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Partitions"), width), style::Reset).unwrap();
     topic_metadata.partition_metadata.iter().for_each(|partition| {
         let partition_header = &format!("Partition#: {:3} ", partition.partition);
         let partition_details = &format!("Leader: {} Replicas: {:?} Offline Replicas: {:?} ISR: {:?}", partition.leader, partition.replicas, partition.offline_replicas, partition.isr);
-        write!(screen, "{}{}{}", color::Fg(color::Cyan), partition_header, style::Reset);
-        write!(screen, "{}", pad_right(partition_details, width - partition_header.len() as u16));
+        write!(screen, "{}{}{}", color::Fg(color::Cyan), partition_header, style::Reset).unwrap();
+        write!(screen, "{}", pad_right(partition_details, width - partition_header.len() as u16)).unwrap();
     });
 
     // configs
-    write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset);
+    write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset).unwrap();
     let longest_config_name_len = config_resource.config_entries.iter().map(|config_entry| config_entry.config_name.len()).max().unwrap();
     config_resource.config_entries.iter().cloned().for_each(|config_entry| {
         let config_name = pad_right(&config_entry.config_name, (longest_config_name_len as u16) + 1);
-        write!(screen, "{}", pad_right(&format!("{}: {}", config_name, config_entry.config_value.unwrap_or(String::from("n/a"))), width));
+        write!(screen, "{}", pad_right(&format!("{}: {}", config_name, config_entry.config_value.unwrap_or(String::from("n/a"))), width)).unwrap();
     });
 }
