@@ -83,6 +83,8 @@ fn main() {
                         if let Some(ref confirm) = user_input::read("delete?: ", (1, height)) {
                             if confirm.eq("Yes") {
                                 sender.send(Message::DeleteTopic(bootstrap_server()));
+                            } else {
+                                sender.send(Message::Noop);
                             }
                         }
                     } else {
