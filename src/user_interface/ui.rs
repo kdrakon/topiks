@@ -16,12 +16,12 @@ use termion::raw::RawTerminal;
 use termion::screen::AlternateScreen;
 use termion::style;
 use termion::terminal_size;
-use user_interface::topic_list::ListItem;
-use user_interface::topic_list::ListItem::*;
-use user_interface::topic_list::PagedVec;
-use user_interface::topic_list::TopicList;
+use user_interface::selectable_list::ListItem;
+use user_interface::selectable_list::ListItem::*;
+use user_interface::selectable_list::SelectableList;
 use utils;
 use utils::pad_right;
+use utils::PagedVec;
 
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -57,7 +57,7 @@ fn show_topics(screen: &mut impl Write, metadata: &MetadataResponse, selected_in
                 }
             }).collect::<Vec<ListItem>>();
 
-        (TopicList { list: list_items }).display(screen, (1, 1));
+        (SelectableList { list: list_items }).display(screen, (1, 1));
     }
 }
 
@@ -70,13 +70,13 @@ fn show_topic_info(screen: &mut impl Write, topic_info: &TopicInfoState, (width,
     write!(screen, "{}", pad_right(&format!("Internal: {}", &(utils::bool_yes_no(topic_metadata.is_internal))), width)).unwrap();
 
     // partitions
-    write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Partitions"), width), style::Reset).unwrap();
-    topic_metadata.partition_metadata.iter().for_each(|partition| {
-        let partition_header = &format!("Partition#: {:3} ", partition.partition);
-        let partition_details = &format!("Leader: {} Replicas: {:?} Offline Replicas: {:?} ISR: {:?}", partition.leader, partition.replicas, partition.offline_replicas, partition.isr);
-        write!(screen, "{}{}{}", color::Fg(color::Cyan), partition_header, style::Reset).unwrap();
-        write!(screen, "{}", pad_right(partition_details, width - partition_header.len() as u16)).unwrap();
-    });
+//    write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Partitions"), width), style::Reset).unwrap();
+//    topic_metadata.partition_metadata.iter().for_each(|partition| {
+//        let partition_header = &format!("Partition#: {:3} ", partition.partition);
+//        let partition_details = &format!("Leader: {} Replicas: {:?} Offline Replicas: {:?} ISR: {:?}", partition.leader, partition.replicas, partition.offline_replicas, partition.isr);
+//        write!(screen, "{}{}{}", color::Fg(color::Cyan), partition_header, style::Reset).unwrap();
+//        write!(screen, "{}", pad_right(partition_details, width - partition_header.len() as u16)).unwrap();
+//    });
 
     // configs
     write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset).unwrap();
