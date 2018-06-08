@@ -50,7 +50,7 @@ fn main() {
     let matches = App::new("topiks")
         .version("1.1.0")
         .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
-        .arg(Arg::with_name("delete").short("d").help("Enable topic deletion"))
+        .arg(Arg::with_name("delete").short("D").help("Enable topic deletion"))
         .arg(Arg::with_name("no-delete-confirmation").long("no-delete-confirmation").help("Disable delete confirmation <Danger!>"))
         .get_matches();
 
