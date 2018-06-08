@@ -1,12 +1,15 @@
 extern crate byteorder;
+extern crate clap;
+#[cfg(test)]
 #[macro_use]
 extern crate proptest;
 extern crate termion;
 
-use app_config::AppConfig;
+use clap::{App, Arg};
 use event_bus::BootstrapServer;
 use event_bus::Message;
 use event_bus::MoveSelection::*;
+use event_bus::TopicQuery::*;
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::deletetopics_request::*;
 use kafka_protocol::protocol_requests::metadata_request::*;
@@ -26,19 +29,35 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
-use event_bus::TopicQuery::*;
 
 pub mod utils;
 pub mod kafka_protocol;
 pub mod tcp_stream_util;
-pub mod app_config;
 pub mod event_bus;
 pub mod state;
 pub mod user_interface;
 
+#[derive(Debug, Copy, Clone)]
+pub struct AppConfig<'a> {
+    pub bootstrap_server: &'a str,
+    pub request_timeout_ms: i32,
+    pub topic_deletion: bool
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let app_config = app_config::from(&args);
+
+    let matches = App::new("topiks")
+        .version("1.1.0")
+        .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
+        .arg(Arg::with_name("delete").short("d").help("Enable topic deletion"))
+        .get_matches();
+
+    let app_config = AppConfig {
+        bootstrap_server: matches.value_of("bootstrap-server").unwrap(),
+        request_timeout_ms: 30_000,
+        topic_deletion: matches.is_present("delete")
+    };
     let sender = event_bus::start();
 
     let mut stdout = std::io::stdout().into_raw_mode().unwrap(); // raw mode to avoid screen output
@@ -59,7 +78,7 @@ fn main() {
                 sender.send(Message::GetTopics(bootstrap_server()));
             }
             Key::Char('d') => {
-                sender.send(Message::DeleteTopic(bootstrap_server()));
+                if app_config.topic_deletion { sender.send(Message::DeleteTopic(bootstrap_server())); }
             }
             Key::Up => {
                 sender.send(Message::SelectTopic(Up));
@@ -78,7 +97,7 @@ fn main() {
             }
             Key::Char('/') => {
                 let (width, height) = terminal_size().unwrap();
-                let query = match user_input::read(screen,"/",(1, height)) {
+                let query = match user_input::read(screen, "/", (1, height)) {
                     Some(query) => Message::SetTopicQuery(Query(query)),
                     None => Message::SetTopicQuery(NoQuery)
                 };
