@@ -2,6 +2,7 @@ use kafka_protocol::protocol_responses::describeconfigs_response::ConfigEntry;
 use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
+use state::CurrentView;
 use state::State;
 use state::TopicInfoState;
 use std::io::{stdin, stdout, Write};
@@ -29,10 +30,19 @@ pub fn update_with_state(state: &State) {
     write!(screen, "{}", termion::clear::All).unwrap();
 
     if let Some(ref metadata) = state.metadata {
-        if let Some(ref topic_info) = state.topic_info_state {
-            show_topic_info(screen, topic_info, (width, height));
-        } else {
-            show_topics(screen, metadata, state.selected_index, &state.marked_deleted, (width, height));
+        match state.current_view {
+            CurrentView::Topics => {
+                show_topics(screen, metadata, state.selected_index, &state.marked_deleted, (width, height));
+            }
+            CurrentView::Partitions => {
+                // TODO
+                unimplemented!()
+            }
+            CurrentView::TopicInfo => {
+                if let Some(ref topic_info) = state.topic_info_state {
+                    show_topic_info(screen, topic_info, (width, height));
+                }
+            }
         }
     }
 
