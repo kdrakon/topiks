@@ -1,9 +1,6 @@
-use termion::screen::AlternateScreen;
-use termion::{cursor, color, style};
-use std::io::{Stdout, stdout, Write};
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
-use termion::raw::RawTerminal;
-use termion::raw::IntoRawMode;
+use std::io::{Stdout, stdout, Write};
+use termion::{color, cursor, style};
 
 pub struct TopicList<A>
     where A: TopicListItem {
@@ -12,7 +9,7 @@ pub struct TopicList<A>
 
 impl<A> TopicList<A>
     where A: TopicListItem {
-    pub fn display(&self, screen: &mut AlternateScreen<RawTerminal<Stdout>>, (start_x, start_y): (u16, u16)) {
+    pub fn display(&self, screen: &mut impl Write, (start_x, start_y): (u16, u16)) {
         write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset).unwrap();
         self.list.iter().for_each(|list_item| {
             write!(screen, "{}{}", list_item.display(), style::Reset).unwrap();
