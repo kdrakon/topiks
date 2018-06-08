@@ -58,7 +58,7 @@ pub fn start() -> Sender<Message> {
         let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
 
         for message in receiver {
-            if let Some(updated_state) = to_event(message).and_then(|event| update_state(event, state.borrow_mut())) {
+            if let Some(updated_state) = update_state(to_event(message), state.borrow_mut()) {
                 state.swap(&RefCell::new(updated_state));
             }
             ui::update_with_state(&state.borrow(), screen);
@@ -68,7 +68,7 @@ pub fn start() -> Sender<Message> {
     sender
 }
 
-fn to_event(message: Message) -> Option<Event> {
+fn to_event(message: Message) -> Event {
     match message {
         GetTopics(BootstrapServer(bootstrap)) => {
             let result: Result<Response<MetadataResponse>, TcpRequestError> =
@@ -77,44 +77,44 @@ fn to_event(message: Message) -> Option<Event> {
                     Request::of(MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
                 );
             match result {
-                Ok(response) => Some(ListTopics(response)),
+                Ok(response) => ListTopics(response),
                 Err(e) => {
                     eprintln!("{}", e.error);
-                    Some(Error(e.error))
+                    Error(e.error)
                 }
             }
         }
 
         SelectTopic(direction) => {
             match direction {
-                Up => Some(TopicSelected(|state: &State| {
+                Up => TopicSelected(|state: &State| {
                     if state.selected_index > 0 { state.selected_index - 1 } else { state.selected_index }
-                })),
-                Down => Some(TopicSelected(|state: &State| {
+                }),
+                Down => TopicSelected(|state: &State| {
                     match state.metadata {
                         Some(ref metadata) => if state.selected_index < (metadata.topic_metadata.len() - 1) { state.selected_index + 1 } else { state.selected_index },
                         None => 0
                     }
-                })),
-                Top => Some(TopicSelected(|state: &State| 0)),
-                Bottom => Some(TopicSelected(|state: &State| {
-                    state.metadata.as_ref().map(|metadata|{
+                }),
+                Top => TopicSelected(|state: &State| 0),
+                Bottom => TopicSelected(|state: &State| {
+                    state.metadata.as_ref().map(|metadata| {
                         metadata.topic_metadata.len() - 1
                     }).unwrap_or(0)
-                })),
-                SearchNext => Some(TopicSelected(|state: &State| state.find_next_index(false).unwrap_or(state.selected_index)))
+                }),
+                SearchNext => TopicSelected(|state: &State| state.find_next_index(false).unwrap_or(state.selected_index))
             }
         }
 
         SetTopicQuery(query) => {
             match query {
-                Query(q) => Some(TopicQuerySet(Some(q))),
-                NoQuery => Some(TopicQuerySet(None))
+                Query(q) => TopicQuerySet(Some(q)),
+                NoQuery => TopicQuerySet(None)
             }
         }
 
         DeleteTopic(BootstrapServer(bootstrap)) => {
-            Some(TopicDeleted(Box::from(move |state: &State| {
+            TopicDeleted(Box::from(move |state: &State| {
                 state.metadata.as_ref().and_then(|metadata| {
                     metadata.topic_metadata.get(state.selected_index).and_then(|delete_topic_metadata| {
                         let delete_topic_name = delete_topic_metadata.topic.clone();
@@ -139,11 +139,11 @@ fn to_event(message: Message) -> Option<Event> {
                         }
                     })
                 })
-            })))
+            }))
         }
 
         ToggleTopicInfo(BootstrapServer(bootstrap)) => {
-            Some(InfoToggled(Box::from(move |state: &State| {
+            InfoToggled(Box::from(move |state: &State| {
                 match state.topic_info_state {
                     Some(_) => None,
                     None => {
@@ -178,7 +178,7 @@ fn to_event(message: Message) -> Option<Event> {
                         }
                     }
                 }
-            })))
+            }))
         }
     }
 }
