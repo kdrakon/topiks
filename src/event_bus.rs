@@ -1,4 +1,4 @@
-use app_config::AppConfig;
+use AppConfig;
 use event_bus::Event::*;
 use event_bus::Message::*;
 use event_bus::MoveSelection::*;
