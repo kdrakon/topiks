@@ -26,7 +26,7 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
-use event_bus::TopicFilter::*;
+use event_bus::TopicQuery::*;
 
 pub mod utils;
 pub mod kafka_protocol;
@@ -67,16 +67,26 @@ fn main() {
             Key::Down => {
                 sender.send(Message::SelectTopic(Down));
             }
+            Key::Home => {
+                sender.send(Message::SelectTopic(Top));
+            }
+            Key::End => {
+                sender.send(Message::SelectTopic(Bottom));
+            }
             Key::Char('i') => {
                 sender.send(Message::ToggleTopicInfo(bootstrap_server()));
             }
             Key::Char('/') => {
                 let (width, height) = terminal_size().unwrap();
-                let filter = match user_input::read(screen,"/",(1, height)) {
-                    Some(filter) => Message::FilterTopics(Filter(filter)),
-                    None => Message::FilterTopics(NoFilter)
+                let query = match user_input::read(screen,"/",(1, height)) {
+                    Some(query) => Message::SetTopicQuery(Query(query)),
+                    None => Message::SetTopicQuery(NoQuery)
                 };
-                sender.send(filter);
+                sender.send(query);
+                sender.send(Message::SelectTopic(SearchNext));
+            }
+            Key::Char('n') => { // TODO support Shift+n for reverse
+                sender.send(Message::SelectTopic(SearchNext));
             }
             _ => {}
         }
