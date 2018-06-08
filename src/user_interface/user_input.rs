@@ -1,7 +1,7 @@
 use std;
 use std::io::{stdin, stdout, Write};
 use std::io::Stdout;
-use termion::{cursor, style};
+use termion::{cursor, style, clear};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::screen::AlternateScreen;
@@ -9,6 +9,8 @@ use termion::screen::AlternateScreen;
 pub fn read(screen: &mut AlternateScreen<Stdout>, cursor_symbol: &str, (cursor_x, cursor_y): (u16, u16)) -> Option<String> {
 
     let stdin = std::io::stdin();
+    write!(screen, "{}{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine, cursor_symbol);
+    screen.flush().unwrap();
 
     let mut input: Vec<char> = vec![];
     for key in stdin.keys() {
@@ -25,7 +27,7 @@ pub fn read(screen: &mut AlternateScreen<Stdout>, cursor_symbol: &str, (cursor_x
             _ => {} // ignore everything else
         }
 
-        write!(screen, "{}{}{}", cursor::Goto(cursor_x, cursor_y), cursor_symbol, input.iter().collect::<String>());
+        write!(screen, "{}{}{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine, cursor_symbol, input.iter().collect::<String>());
         screen.flush().unwrap();
     }
 

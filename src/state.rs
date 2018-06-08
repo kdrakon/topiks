@@ -7,27 +7,52 @@ pub struct State {
     pub metadata: Option<MetadataResponse>,
     pub selected_index: usize,
     pub marked_deleted: Vec<String>,
+    pub topic_name_query: Option<String>,
     pub topic_info_state: Option<TopicInfoState>
 }
 
 impl State {
 
     pub fn new() -> State {
-        State { metadata: None, selected_index: 0, marked_deleted: vec![], topic_info_state: None }
+        State { metadata: None, selected_index: 0, marked_deleted: vec![], topic_name_query: None, topic_info_state: None }
     }
 
     pub fn selected_topic_name(&self) -> Option<String> {
-        self.metadata.iter().map(|metadata|{
-            metadata.topic_metadata.get(self.selected_index).map(|m|{
+        self.metadata.as_ref().and_then(|metadata|{
+            metadata.topic_metadata.get(self.selected_index).map(|m: &TopicMetadata|{
                 m.topic.clone()
             })
-        }).collect::<Option<String>>()
+        })
     }
 
     pub fn selected_topic_metadata(&self) -> Option<TopicMetadata> {
-        self.metadata.clone().and_then(|metadata|{
+        self.metadata.as_ref().and_then(|metadata|{
             metadata.topic_metadata.get(self.selected_index).map(|topic_metadata|{
                 topic_metadata.clone()
+            })
+        })
+    }
+
+    pub fn find_next_index(&self, in_reverse: bool) -> Option<usize> {
+        self.topic_name_query.as_ref().and_then(|query| {
+            self.metadata.as_ref().and_then(|metadata| {
+                let indexed = metadata.topic_metadata.iter().zip((0..metadata.topic_metadata.len())).collect::<Vec<(&TopicMetadata, usize)>>();
+                let slice = if self.selected_index < metadata.topic_metadata.len() {
+                    if in_reverse {
+                        let mut vec = indexed.as_slice()[0..self.selected_index].to_vec();
+                        vec.reverse();
+                        vec
+                    } else {
+                        indexed.as_slice()[(self.selected_index + 1)..].to_vec() // +1 since we don't want to find the selected index
+                    }
+                } else {
+                    vec![]
+                };
+
+                slice.iter().find(|m| {
+                    let (topic_metadata, index) = **m;
+                    topic_metadata.topic.contains(query)
+                }).map(|result| result.1)
             })
         })
     }

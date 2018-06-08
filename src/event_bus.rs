@@ -2,6 +2,7 @@ use app_config::AppConfig;
 use event_bus::Event::*;
 use event_bus::Message::*;
 use event_bus::MoveSelection::*;
+use event_bus::TopicQuery::*;
 use kafka_protocol::protocol_request::Request;
 use kafka_protocol::protocol_requests::deletetopics_request::DeleteTopicsRequest;
 use kafka_protocol::protocol_requests::describeconfigs_request::DescribeConfigsRequest;
@@ -28,14 +29,14 @@ use user_interface::ui;
 
 pub struct BootstrapServer(pub String);
 
-pub enum MoveSelection { Up, Down }
+pub enum MoveSelection { Up, Down, Top, Bottom, SearchNext }
 
-pub enum TopicFilter { NoFilter, Filter(String) }
+pub enum TopicQuery { NoQuery, Query(String) }
 
 pub enum Message {
     GetTopics(BootstrapServer),
     SelectTopic(MoveSelection),
-    FilterTopics(TopicFilter),
+    SetTopicQuery(TopicQuery),
     DeleteTopic(BootstrapServer),
     ToggleTopicInfo(BootstrapServer),
 }
@@ -44,6 +45,7 @@ enum Event {
     Error(String),
     ListTopics(Response<MetadataResponse>),
     TopicSelected(fn(&State) -> usize),
+    TopicQuerySet(Option<String>),
     TopicDeleted(Box<Fn(&State) -> Option<String>>),
     InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>),
 }
@@ -93,13 +95,22 @@ fn to_event(message: Message) -> Option<Event> {
                         Some(ref metadata) => if state.selected_index < (metadata.topic_metadata.len() - 1) { state.selected_index + 1 } else { state.selected_index },
                         None => 0
                     }
-                }))
+                })),
+                Top => Some(TopicSelected(|state: &State| 0)),
+                Bottom => Some(TopicSelected(|state: &State| {
+                    state.metadata.as_ref().map(|metadata|{
+                        metadata.topic_metadata.len() - 1
+                    }).unwrap_or(0)
+                })),
+                SearchNext => Some(TopicSelected(|state: &State| state.find_next_index(false).unwrap_or(state.selected_index)))
             }
         }
 
-        FilterTopics(filter) => {
-            // TODO
-            None
+        SetTopicQuery(query) => {
+            match query {
+                Query(q) => Some(TopicQuerySet(Some(q))),
+                NoQuery => Some(TopicQuerySet(None))
+            }
         }
 
         DeleteTopic(BootstrapServer(bootstrap)) => {
@@ -182,6 +193,10 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
         }
         TopicSelected(select_fn) => {
             current_state.selected_index = select_fn(&current_state);
+            Some(current_state.clone())
+        }
+        TopicQuerySet(query) => {
+            current_state.topic_name_query = query;
             Some(current_state.clone())
         }
         TopicDeleted(boxed_delete_fn) => {

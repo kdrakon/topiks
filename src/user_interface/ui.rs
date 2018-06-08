@@ -25,8 +25,8 @@ use utils::pad_right;
 
 pub fn update_with_state(state: &State, screen: &mut AlternateScreen<Stdout>) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
-
     write!(screen, "{}", termion::clear::All);
+
     if let Some(ref metadata) = state.metadata {
         if let Some(ref topic_info) = state.topic_info_state {
             show_topic_info(screen, topic_info, (width, height));
