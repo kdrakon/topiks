@@ -28,11 +28,11 @@ pub fn read(label: &str, (cursor_x, cursor_y): (u16, u16)) -> Option<String> {
             _ => {} // ignore everything else
         }
 
-        write!(screen, "{}{}{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine, label, input.iter().collect::<String>());
+        write!(screen, "{}{}{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine, label, input.iter().collect::<String>()).unwrap();
         screen.flush().unwrap();
     }
 
-    write!(screen, "{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine);
+    write!(screen, "{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine).unwrap();
     screen.flush().unwrap();
 
     let read = input.iter().collect::<String>();

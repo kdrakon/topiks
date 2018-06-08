@@ -13,12 +13,12 @@ pub struct TopicList<A>
 impl<A> TopicList<A>
     where A: TopicListItem {
     pub fn display(&self, screen: &mut AlternateScreen<RawTerminal<Stdout>>, (start_x, start_y): (u16, u16)) {
-        write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset);
+        write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset).unwrap();
         self.list.iter().for_each(|list_item| {
-            write!(screen, "{}{}", list_item.display(), style::Reset);
-            write!(screen, "{}{}", cursor::Left(list_item.label().len() as u16), cursor::Down(1));
+            write!(screen, "{}{}", list_item.display(), style::Reset).unwrap();
+            write!(screen, "{}{}", cursor::Left(list_item.label().len() as u16), cursor::Down(1)).unwrap();
         });
-        write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset);
+        write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset).unwrap();
     }
 }
 

@@ -62,7 +62,7 @@ fn main() {
     };
     let sender = event_bus::start();
 
-    let stdout = std::io::stdout().into_raw_mode().unwrap(); // raw mode to avoid screen output
+    let stdout = &mut AlternateScreen::from(std::io::stdout().into_raw_mode().unwrap()); // raw mode to avoid screen output
     let stdin = stdin();
 
     let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
