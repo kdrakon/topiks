@@ -54,14 +54,13 @@ pub fn start() -> Sender<Message> {
     let (sender, receiver): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     thread::spawn(move || {
-        let screen = &mut AlternateScreen::from(stdout()); // a single alternate screen for all UI to write to
         let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
 
         for message in receiver {
             if let Some(updated_state) = update_state(to_event(message), state.borrow_mut()) {
                 state.swap(&RefCell::new(updated_state));
             }
-            ui::update_with_state(&state.borrow(), screen);
+            ui::update_with_state(&state.borrow());
         }
     });
 

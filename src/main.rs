@@ -37,11 +37,11 @@ pub mod event_bus;
 pub mod state;
 pub mod user_interface;
 
-#[derive(Debug, Copy, Clone)]
-pub struct AppConfig<'a> {
-    pub bootstrap_server: &'a str,
-    pub request_timeout_ms: i32,
-    pub topic_deletion: bool
+struct AppConfig<'a> {
+    bootstrap_server: &'a str,
+    request_timeout_ms: i32,
+    topic_deletion: bool,
+    topic_deletion_confirmation: bool,
 }
 
 fn main() {
@@ -51,17 +51,18 @@ fn main() {
         .version("1.1.0")
         .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
         .arg(Arg::with_name("delete").short("d").help("Enable topic deletion"))
+        .arg(Arg::with_name("no-delete-confirmation").long("no-delete-confirmation").help("Disable delete confirmation <Danger!>"))
         .get_matches();
 
     let app_config = AppConfig {
         bootstrap_server: matches.value_of("bootstrap-server").unwrap(),
         request_timeout_ms: 30_000,
-        topic_deletion: matches.is_present("delete")
+        topic_deletion: matches.is_present("delete"),
+        topic_deletion_confirmation: !matches.is_present("no-delete-confirmation"),
     };
     let sender = event_bus::start();
 
-    let mut stdout = std::io::stdout().into_raw_mode().unwrap(); // raw mode to avoid screen output
-    let screen = &mut AlternateScreen::from(std::io::stdout());
+    let stdout = std::io::stdout().into_raw_mode().unwrap(); // raw mode to avoid screen output
     let stdin = stdin();
 
     let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
@@ -70,15 +71,24 @@ fn main() {
     for key in stdin.keys() {
         match key.unwrap() {
             Key::Char('q') => {
-                write!(screen, "{}", termion::clear::All);
-                screen.flush().unwrap();
                 break;
             }
             Key::Char('r') => {
                 sender.send(Message::GetTopics(bootstrap_server()));
             }
             Key::Char('d') => {
-                if app_config.topic_deletion { sender.send(Message::DeleteTopic(bootstrap_server())); }
+                if app_config.topic_deletion {
+                    if app_config.topic_deletion_confirmation {
+                        let (width, height) = terminal_size().unwrap();
+                        if let Some(ref confirm) = user_input::read("delete?: ", (1, height)) {
+                            if confirm.eq("Yes") {
+                                sender.send(Message::DeleteTopic(bootstrap_server()));
+                            }
+                        }
+                    } else {
+                        sender.send(Message::DeleteTopic(bootstrap_server()));
+                    }
+                }
             }
             Key::Up => {
                 sender.send(Message::SelectTopic(Up));
@@ -97,7 +107,7 @@ fn main() {
             }
             Key::Char('/') => {
                 let (width, height) = terminal_size().unwrap();
-                let query = match user_input::read(screen, "/", (1, height)) {
+                let query = match user_input::read("/", (1, height)) {
                     Some(query) => Message::SetTopicQuery(Query(query)),
                     None => Message::SetTopicQuery(NoQuery)
                 };
