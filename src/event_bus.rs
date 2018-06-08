@@ -15,6 +15,7 @@ use kafka_protocol::protocol_responses::describeconfigs_response::DescribeConfig
 use kafka_protocol::protocol_responses::describeconfigs_response::Resource as ResponseResource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use state::*;
+use state::CurrentView;
 use std::cell::RefCell;
 use std::cell::RefMut;
 use std::io::stdout;
@@ -193,6 +194,7 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
         ListTopics(response) => {
             current_state.metadata = Some(response.response_message);
             current_state.marked_deleted = vec![];
+            current_state.current_view = CurrentView::Topics;
             Some(current_state.clone())
         }
         TopicSelected(select_fn) => {
@@ -215,6 +217,10 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
         }
         InfoToggled(toggle_fn) => {
             current_state.topic_info_state = toggle_fn(&current_state);
+            current_state.current_view = match current_state.topic_info_state {
+                Some(_) => CurrentView::TopicInfo,
+                None => CurrentView::Topics
+            };
             Some(current_state.clone())
         }
     }
