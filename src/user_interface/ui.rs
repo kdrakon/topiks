@@ -39,7 +39,7 @@ pub fn update_with_state(state: &State) {
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
 
-fn show_topics(screen: &mut AlternateScreen<RawTerminal<Stdout>>, metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>, (width, height): (u16, u16)) {
+fn show_topics(screen: &mut impl Write, metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>, (width, height): (u16, u16)) {
     let paged = PagedVec::from(&metadata.topic_metadata, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(selected_index) {
@@ -61,7 +61,7 @@ fn show_topics(screen: &mut AlternateScreen<RawTerminal<Stdout>>, metadata: &Met
     }
 }
 
-fn show_topic_info(screen: &mut AlternateScreen<RawTerminal<Stdout>>, topic_info: &TopicInfoState, (width, height): (u16, u16)) {
+fn show_topic_info(screen: &mut impl Write, topic_info: &TopicInfoState, (width, height): (u16, u16)) {
     let ref topic_metadata = topic_info.topic_metadata;
     let ref config_resource = topic_info.config_resource;
 
