@@ -107,6 +107,9 @@ fn main() {
             Key::Char('i') => {
                 sender.send(Message::ToggleTopicInfo(bootstrap_server()));
             }
+            Key::Char('p') => {
+                sender.send(Message::TogglePartitionInfo(bootstrap_server()));
+            }
             Key::Char('/') => {
                 let (width, height) = terminal_size().unwrap();
                 let query = match user_input::read("/", (1, height)) {

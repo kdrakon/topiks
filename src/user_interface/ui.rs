@@ -32,15 +32,16 @@ pub fn update_with_state(state: &State) {
     if let Some(ref metadata) = state.metadata {
         match state.current_view {
             CurrentView::Topics => {
-                show_topics(screen, metadata, state.selected_index, &state.marked_deleted, (width, height));
+                show_topics(screen, (width, height), metadata, state.selected_index, &state.marked_deleted);
             }
             CurrentView::Partitions => {
-                // TODO
-                unimplemented!()
+                if let Some(topic_metadata) = metadata.topic_metadata.get(state.selected_index).as_ref() {
+                    show_topic_partitions(screen, (width, height), topic_metadata);
+                }
             }
             CurrentView::TopicInfo => {
                 if let Some(ref topic_info) = state.topic_info_state {
-                    show_topic_info(screen, topic_info, (width, height));
+                    show_topic_info(screen, (width, height), topic_info);
                 }
             }
         }
@@ -49,21 +50,21 @@ pub fn update_with_state(state: &State) {
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
 
-fn show_topics(screen: &mut impl Write, metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>, (width, height): (u16, u16)) {
+fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>) {
     let paged = PagedVec::from(&metadata.topic_metadata, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(selected_index) {
         let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&TopicMetadata, usize)>>();
-
         let list_items =
             indexed.iter().map(|&(topic_metadata, index)| {
                 let topic_name = topic_metadata.topic.clone();
+                let topic_label = format!("{} [{}]", topic_name, topic_metadata.partition_metadata.len());
                 if page_index == index {
-                    Selected(topic_name)
+                    Selected(topic_label)
                 } else if marked_deleted.contains(&topic_name) {
                     Deleted(topic_name)
                 } else {
-                    Normal(topic_name)
+                    Normal(topic_label)
                 }
             }).collect::<Vec<ListItem>>();
 
@@ -71,22 +72,28 @@ fn show_topics(screen: &mut impl Write, metadata: &MetadataResponse, selected_in
     }
 }
 
-fn show_topic_info(screen: &mut impl Write, topic_info: &TopicInfoState, (width, height): (u16, u16)) {
+fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), topic_metadata: &TopicMetadata) {
+    // TODO page this
+    let partition_metadata = &topic_metadata.partition_metadata;
+
+    let list_items =
+        partition_metadata.iter().map(|partition| {
+            Normal(format!(
+                "{}Partition#{:3}{} -- Leader: {:4} Replicas: {:?} Offline Replicas: {:?} ISR: {:?}",
+                style::Bold, partition.partition, style::Reset, partition.leader, partition.replicas, partition.offline_replicas, partition.isr
+            ))
+        }).collect::<Vec<ListItem>>();
+
+    (SelectableList { list: list_items }).display(screen, (1, 1));
+}
+
+fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), topic_info: &TopicInfoState) {
     let ref topic_metadata = topic_info.topic_metadata;
     let ref config_resource = topic_info.config_resource;
 
     // header
     write!(screen, "{}{}{}", style::Bold, pad_right(&format!("Topic: {}", &topic_metadata.topic), width), style::Reset).unwrap();
     write!(screen, "{}", pad_right(&format!("Internal: {}", &(utils::bool_yes_no(topic_metadata.is_internal))), width)).unwrap();
-
-    // partitions
-//    write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Partitions"), width), style::Reset).unwrap();
-//    topic_metadata.partition_metadata.iter().for_each(|partition| {
-//        let partition_header = &format!("Partition#: {:3} ", partition.partition);
-//        let partition_details = &format!("Leader: {} Replicas: {:?} Offline Replicas: {:?} ISR: {:?}", partition.leader, partition.replicas, partition.offline_replicas, partition.isr);
-//        write!(screen, "{}{}{}", color::Fg(color::Cyan), partition_header, style::Reset).unwrap();
-//        write!(screen, "{}", pad_right(partition_details, width - partition_header.len() as u16)).unwrap();
-//    });
 
     // configs
     write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset).unwrap();
