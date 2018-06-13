@@ -75,6 +75,7 @@ fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &
 fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), topic_metadata: &TopicMetadata) {
     // TODO page this
     let partition_metadata = &topic_metadata.partition_metadata;
+//    let paged = PagedVec::from(partition_metadata, (height - 1) as usize);
 
     let list_items =
         partition_metadata.iter().map(|partition| {
