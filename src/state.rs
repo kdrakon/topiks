@@ -75,5 +75,5 @@ pub struct TopicInfoState {
 
 #[derive(Clone)]
 pub struct PartitionInfoState {
-
+    pub selected_index: usize
 }

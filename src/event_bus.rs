@@ -52,7 +52,7 @@ enum Event {
     TopicQuerySet(Option<String>),
     TopicDeleted(Box<Fn(&State) -> Option<String>>),
     InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>),
-    PartitionsToggled(Box<Fn(&State) -> bool>) // TODO change to support consumer group offset retrieval
+    PartitionsToggled(Box<Fn(&State) -> Option<PartitionInfoState>>) // TODO change to support consumer group offset retrieval
 }
 
 pub fn start() -> Sender<Message> {
@@ -189,10 +189,7 @@ fn to_event(message: Message) -> Event {
 
         TogglePartitionInfo(BootstrapServer(bootstrap)) => {
             PartitionsToggled(Box::from(move|state: &State|{
-                match state.current_view {
-                    CurrentView::Partitions => false,
-                    _ => true
-                }
+                None
             }))
         }
     }
@@ -234,12 +231,9 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
             };
             Some(current_state.clone())
         }
-        PartitionsToggled(toggle_fn) => {
-            current_state.current_view = if toggle_fn(&current_state) {
-                CurrentView::Partitions
-            } else {
-                CurrentView::Topics
-            };
+        PartitionsToggled(partition_info_fn) => {
+            current_state.partition_info_state = partition_info_fn(&current_state);
+            current_state.current_view = if current_state.partition_info_state.is_some() { CurrentView::Partitions } else { CurrentView::Topics };
             Some(current_state.clone())
         }
     }
