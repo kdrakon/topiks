@@ -11,6 +11,7 @@ pub struct State {
     pub marked_deleted: Vec<String>,
     pub topic_name_query: Option<String>,
     pub topic_info_state: Option<TopicInfoState>,
+    pub partition_info_state: Option<PartitionInfoState>
 }
 
 #[derive(Clone)]
@@ -22,7 +23,7 @@ pub enum CurrentView {
 
 impl State {
     pub fn new() -> State {
-        State { current_view: Topics, metadata: None, selected_index: 0, marked_deleted: vec![], topic_name_query: None, topic_info_state: None }
+        State { current_view: Topics, metadata: None, selected_index: 0, marked_deleted: vec![], topic_name_query: None, topic_info_state: None, partition_info_state: None }
     }
 
     pub fn selected_topic_name(&self) -> Option<String> {
@@ -70,4 +71,9 @@ impl State {
 pub struct TopicInfoState {
     pub topic_metadata: TopicMetadata,
     pub config_resource: Resource,
+}
+
+#[derive(Clone)]
+pub struct PartitionInfoState {
+
 }
