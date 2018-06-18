@@ -16,6 +16,7 @@ use termion::raw::IntoRawMode;
 use termion::raw::RawTerminal;
 use termion::screen::AlternateScreen;
 use termion::style;
+use termion::clear;
 use termion::terminal_size;
 use user_interface::selectable_list::ListItem;
 use user_interface::selectable_list::ListItem::*;
@@ -46,6 +47,8 @@ pub fn update_with_state(state: &State) {
             }
         }
     }
+
+    show_user_input(screen, (width, height), state.user_input.as_ref());
 
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
@@ -103,4 +106,12 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), topic_i
         let config_name = pad_right(&config_entry.config_name, (longest_config_name_len as u16) + 1);
         write!(screen, "{}", pad_right(&format!("{}: {}", config_name, config_entry.config_value.unwrap_or(String::from("n/a"))), width)).unwrap();
     });
+}
+
+fn show_user_input(screen: &mut impl Write, (width, height): (u16, u16), user_input: Option<&String>) {
+    write!(screen, "{}", cursor::Goto(1, height)).unwrap();
+    match user_input {
+        None => write!(screen, "{}", clear::CurrentLine).unwrap(),
+        Some(input) => write!(screen, "{}{}", clear::CurrentLine, input).unwrap()
+    }
 }

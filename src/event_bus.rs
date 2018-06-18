@@ -38,6 +38,7 @@ pub enum TopicQuery { NoQuery, Query(String) }
 
 pub enum Message {
     Noop,
+    UserInput(String),
     GetTopics(BootstrapServer),
     SelectTopic(MoveSelection),
     SetTopicQuery(TopicQuery),
@@ -49,6 +50,7 @@ pub enum Message {
 enum Event {
     Error(String),
     StateIdentity,
+    DisplayUserInput(String),
     ListTopics(Response<MetadataResponse>),
     TopicSelected(fn(&State) -> usize),
     TopicQuerySet(Option<String>),
@@ -77,6 +79,8 @@ pub fn start() -> Sender<Message> {
 fn to_event(message: Message) -> Event {
     match message {
         Noop => StateIdentity,
+
+        UserInput(input) => DisplayUserInput(input),
 
         GetTopics(BootstrapServer(bootstrap)) => {
             let result: Result<Response<MetadataResponse>, TcpRequestError> =
@@ -201,6 +205,10 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
     match event {
         Error(_) => None,
         StateIdentity => Some(current_state.clone()),
+        DisplayUserInput(input) => {
+            current_state.user_input = if !input.is_empty() { Some(input) } else { None };
+            Some(current_state.clone())
+        }
         ListTopics(response) => {
             current_state.metadata = Some(response.response_message);
             current_state.marked_deleted = vec![];
