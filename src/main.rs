@@ -29,6 +29,7 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
+use event_bus::ConsumerGroup;
 
 pub mod utils;
 pub mod kafka_protocol;
@@ -39,6 +40,7 @@ pub mod user_interface;
 
 struct AppConfig<'a> {
     bootstrap_server: &'a str,
+    consumer_group: Option<&'a str>,
     request_timeout_ms: i32,
     topic_deletion: bool,
     topic_deletion_confirmation: bool,
@@ -50,12 +52,14 @@ fn main() {
     let matches = App::new("topiks")
         .version("1.1.0")
         .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
+        .arg(Arg::with_name("consumer-group").long("consumer-group").short("c").takes_value(true).help("Consumer group for fetching offsets"))
         .arg(Arg::with_name("delete").short("D").help("Enable topic deletion"))
         .arg(Arg::with_name("no-delete-confirmation").long("no-delete-confirmation").help("Disable delete confirmation <Danger!>"))
         .get_matches();
 
     let app_config = AppConfig {
         bootstrap_server: matches.value_of("bootstrap-server").unwrap(),
+        consumer_group: matches.value_of("consumer-group"),
         request_timeout_ms: 30_000,
         topic_deletion: matches.is_present("delete"),
         topic_deletion_confirmation: !matches.is_present("no-delete-confirmation"),
@@ -66,6 +70,8 @@ fn main() {
     let stdin = stdin();
 
     let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
+    let consumer_group = || app_config.consumer_group.clone().map(|cg| ConsumerGroup(String::from(cg)));
+
     sender.send(Message::GetTopics(bootstrap_server()));
 
     for key in stdin.keys() {
@@ -108,7 +114,7 @@ fn main() {
                 sender.send(Message::ToggleTopicInfo(bootstrap_server()));
             }
             Key::Char('p') => {
-                sender.send(Message::TogglePartitionInfo(bootstrap_server()));
+                sender.send(Message::TogglePartitionInfo(bootstrap_server(), consumer_group()));
             }
             Key::Char('/') => {
                 let (width, height) = terminal_size().unwrap();
