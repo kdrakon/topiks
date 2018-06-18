@@ -30,6 +30,8 @@ use user_interface::ui;
 
 pub struct BootstrapServer(pub String);
 
+pub struct ConsumerGroup(pub String);
+
 pub enum MoveSelection { Up, Down, Top, Bottom, SearchNext }
 
 pub enum TopicQuery { NoQuery, Query(String) }
@@ -41,7 +43,7 @@ pub enum Message {
     SetTopicQuery(TopicQuery),
     DeleteTopic(BootstrapServer),
     ToggleTopicInfo(BootstrapServer),
-    TogglePartitionInfo(BootstrapServer),
+    TogglePartitionInfo(BootstrapServer, Option<ConsumerGroup>),
 }
 
 enum Event {
@@ -187,7 +189,7 @@ fn to_event(message: Message) -> Event {
             }))
         }
 
-        TogglePartitionInfo(BootstrapServer(bootstrap)) => {
+        TogglePartitionInfo(BootstrapServer(bootstrap), opt_consumer_group) => {
             PartitionsToggled(Box::from(move|state: &State|{
                 None
             }))
