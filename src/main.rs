@@ -86,7 +86,7 @@ fn main() {
                 if app_config.topic_deletion {
                     if app_config.topic_deletion_confirmation {
                         let (width, height) = terminal_size().unwrap();
-                        if let Some(ref confirm) = user_input::read("delete?: ", (1, height)) {
+                        if let Some(ref confirm) = user_input::read("delete?: ", (1, height), sender.clone()) {
                             if confirm.eq("Yes") {
                                 sender.send(Message::DeleteTopic(bootstrap_server()));
                             } else {
@@ -118,7 +118,7 @@ fn main() {
             }
             Key::Char('/') => {
                 let (width, height) = terminal_size().unwrap();
-                let query = match user_input::read("/", (1, height)) {
+                let query = match user_input::read("/", (1, height), sender.clone()) {
                     Some(query) => Message::SetTopicQuery(Query(query)),
                     None => Message::SetTopicQuery(NoQuery)
                 };
