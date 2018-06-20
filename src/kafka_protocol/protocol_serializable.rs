@@ -24,26 +24,29 @@ pub trait ProtocolDeserializable<T> {
 }
 
 pub type ProtocolDeserializeResult<T> = Result<T, DeserializeError>;
+
 #[derive(Debug)]
 pub struct DeserializeError { pub error: String }
+
 impl DeserializeError {
     pub fn of(error: String) -> DeserializeError { DeserializeError { error } }
 }
 
 // Deserializer Functions
-pub fn de_i32(bytes: Vec<u8>) -> ProtocolDeserializeResult<i32> {
-    Cursor::new(bytes).read_i32::<BigEndian>().map_err(|e| DeserializeError::of(e.description().to_string()))
+fn deserialize_number<N>(bytes: Vec<u8>, f: fn(Cursor<Vec<u8>>) -> IOResult<N>) -> ProtocolDeserializeResult<N> {
+    f(Cursor::new(bytes)).map_err(|e| DeserializeError::of(e.description().to_string()))
 }
 
-pub fn de_i16(bytes: Vec<u8>) -> ProtocolDeserializeResult<i16> {
-    Cursor::new(bytes).read_i16::<BigEndian>().map_err(|e| DeserializeError::of(e.description().to_string()))
-}
+pub fn de_i32(bytes: Vec<u8>) -> ProtocolDeserializeResult<i32> { deserialize_number(bytes, |mut c| c.read_i32::<BigEndian>()) }
+
+pub fn de_i16(bytes: Vec<u8>) -> ProtocolDeserializeResult<i16> { deserialize_number(bytes, |mut c| c.read_i16::<BigEndian>()) }
+
+pub fn de_i64(bytes: Vec<u8>) -> ProtocolDeserializeResult<i64> { deserialize_number(bytes, |mut c| c.read_i64::<BigEndian>()) }
 
 pub type DynamicSize<T> = (T, Vec<u8>); // Vec<u8> == remaining bytes after
 
 pub fn de_array<T, F>(bytes: Vec<u8>, deserialize_t: F) -> ProtocolDeserializeResult<DynamicSize<Vec<T>>>
     where F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<T>> {
-
     let array_size = de_i32(bytes[0..4].to_vec());
     array_size.and_then(|expected_elements| {
         let element_bytes = bytes[4..].to_vec();
@@ -53,17 +56,16 @@ pub fn de_array<T, F>(bytes: Vec<u8>, deserialize_t: F) -> ProtocolDeserializeRe
 
 fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> ProtocolDeserializeResult<DynamicSize<Vec<T>>>
     where F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<T>> {
-
     if elements <= 0 {
         Ok((vec![] as Vec<T>, bytes))
     } else {
-        deserialize_t(bytes).and_then(|(t, leftover_bytes)|{
+        deserialize_t(bytes).and_then(|(t, leftover_bytes)| {
             match de_array_transform(leftover_bytes, elements - 1, deserialize_t) {
                 Ok((mut next_ts, leftover_bytes)) => {
                     let mut ts = vec![t];
                     ts.append(&mut next_ts);
                     Ok((ts, leftover_bytes))
-                },
+                }
                 err @ Err(_) => err
             }
         })
@@ -71,7 +73,7 @@ fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> 
 }
 
 pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<Option<String>>> {
-    de_i16(bytes[0..2].to_vec()).and_then(|byte_length|{
+    de_i16(bytes[0..2].to_vec()).and_then(|byte_length| {
         match byte_length {
             -1 => Ok((None, bytes[2..].to_vec())),
             _ => {
