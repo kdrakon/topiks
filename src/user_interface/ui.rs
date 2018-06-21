@@ -3,12 +3,14 @@ use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
 use state::CurrentView;
+use state::PartitionInfoState;
 use state::State;
 use state::TopicInfoState;
 use std::io::{stdin, stdout, Write};
 use std::io::Stdout;
 use std::thread;
 use termion;
+use termion::clear;
 use termion::color;
 use termion::color::Color;
 use termion::cursor;
@@ -16,7 +18,6 @@ use termion::raw::IntoRawMode;
 use termion::raw::RawTerminal;
 use termion::screen::AlternateScreen;
 use termion::style;
-use termion::clear;
 use termion::terminal_size;
 use user_interface::selectable_list::ListItem;
 use user_interface::selectable_list::ListItem::*;
@@ -24,6 +25,7 @@ use user_interface::selectable_list::SelectableList;
 use utils;
 use utils::pad_right;
 use utils::PagedVec;
+use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -36,8 +38,8 @@ pub fn update_with_state(state: &State) {
                 show_topics(screen, (width, height), metadata, state.selected_index, &state.marked_deleted);
             }
             CurrentView::Partitions => {
-                if let Some(topic_metadata) = metadata.topic_metadata.get(state.selected_index).as_ref() {
-                    show_topic_partitions(screen, (width, height), topic_metadata);
+                if let (Some(topic_metadata), Some(partition_info_state)) = (metadata.topic_metadata.get(state.selected_index).as_ref(), state.partition_info_state.as_ref()) {
+                    show_topic_partitions(screen, (width, height), topic_metadata, partition_info_state);
                 }
             }
             CurrentView::TopicInfo => {
@@ -75,20 +77,22 @@ fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &
     }
 }
 
-fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), topic_metadata: &TopicMetadata) {
-    // TODO page this
-    let partition_metadata = &topic_metadata.partition_metadata;
-//    let paged = PagedVec::from(partition_metadata, (height - 1) as usize);
+fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), topic_metadata: &TopicMetadata, partition_info_state: &PartitionInfoState) {
+    let paged = PagedVec::from(&topic_metadata.partition_metadata, (height - 1) as usize);
 
-    let list_items =
-        partition_metadata.iter().map(|partition| {
-            Normal(format!(
-                "{}Partition#{:3}{} -- Leader: {:4} Replicas: {:?} Offline Replicas: {:?} ISR: {:?}",
-                style::Bold, partition.partition, style::Reset, partition.leader, partition.replicas, partition.offline_replicas, partition.isr
-            ))
-        }).collect::<Vec<ListItem>>();
+    if let Some((page_index, page)) = paged.page(partition_info_state.selected_index) {
+        let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&PartitionMetadata, usize)>>();
+        let list_items =
+            indexed.iter().map(|&(partition, index)| {
+                let partition_offset = partition_info_state.partition_offsets.get(&partition.partition);
+                Normal(format!(
+                    "{}Partition#{:3}{} -- Leader: {:4} Replicas: {:?} Offline Replicas: {:?} ISR: {:?} {:?}",
+                    style::Bold, partition.partition, style::Reset, partition.leader, partition.replicas, partition.offline_replicas, partition.isr, partition_offset
+                ))
+            }).collect::<Vec<ListItem>>();
 
-    (SelectableList { list: list_items }).display(screen, (1, 1));
+        (SelectableList { list: list_items }).display(screen, (1, 1));
+    }
 }
 
 fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), topic_info: &TopicInfoState) {
