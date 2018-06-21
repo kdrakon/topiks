@@ -60,8 +60,9 @@ pub fn start() -> Sender<Message> {
         let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
 
         for message in receiver {
-            if let Some(updated_state) = update_state(to_event(message), state.borrow_mut()) {
-                state.swap(&RefCell::new(updated_state));
+            match update_state(to_event(message), state.borrow_mut()) {
+                Ok(updated_state) => state.swap(&RefCell::new(updated_state)),
+                Err(e) => panic!(e)
             }
             ui::update_with_state(&state.borrow());
         }
@@ -226,63 +227,51 @@ fn to_event(message: Message) -> Event {
     }
 }
 
-fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State> { // TODO change to Result
+fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State, StateFNError<impl Display>> {
     match event {
-        StateIdentity => Some(current_state.clone()),
+        StateIdentity => Ok(current_state.clone()),
         UserInputUpdated(input) => {
             current_state.user_input = if !input.is_empty() { Some(input) } else { None };
-            Some(current_state.clone())
+            Ok(current_state.clone())
         }
         ListTopics(get_metadata) => {
-            match get_metadata(&current_state) {
-                Err(e) => None, // TODO
-                Ok(response) => {
-                    current_state.metadata = Some(response);
-                    current_state.marked_deleted = vec![];
-                    current_state.current_view = CurrentView::Topics;
-                    Some(current_state.clone())
-                }
-            }
+            get_metadata(&current_state).map(|response: metadata_response::MetadataResponse| {
+                current_state.metadata = Some(response);
+                current_state.marked_deleted = vec![];
+                current_state.current_view = CurrentView::Topics;
+                current_state.clone()
+            })
         }
         TopicSelected(select_fn) => {
             current_state.selected_index = select_fn(&current_state);
-            Some(current_state.clone())
+            Ok(current_state.clone())
         }
         TopicQuerySet(query) => {
             current_state.topic_name_query = query;
-            Some(current_state.clone())
+            Ok(current_state.clone())
         }
         TopicDeleted(delete_fn) => {
-            match delete_fn(&current_state) {
-                Err(e) => None, // TODO
-                Ok(deleted_name) => {
-                    current_state.marked_deleted.push(deleted_name);
-                    Some(current_state.clone())
-                }
-            }
+            delete_fn(&current_state).map(|deleted_name: String| {
+                current_state.marked_deleted.push(deleted_name);
+                current_state.clone()
+            })
         }
         InfoToggled(toggle_fn) => {
-            match toggle_fn(&current_state) {
-                Err(e) => None, // TODO
-                Ok(topic_info_state) => {
-                    current_state.topic_info_state = topic_info_state;
-                    current_state.current_view = match current_state.topic_info_state {
-                        Some(_) => CurrentView::TopicInfo,
-                        None => CurrentView::Topics
-                    };
-                    Some(current_state.clone())
-                }
-            }
+            toggle_fn(&current_state).map(|topic_info_state: Option<TopicInfoState>| {
+                current_state.topic_info_state = topic_info_state;
+                current_state.current_view = match current_state.topic_info_state {
+                    Some(_) => CurrentView::TopicInfo,
+                    None => CurrentView::Topics
+                };
+                current_state.clone()
+            })
         }
         PartitionsToggled(partition_info_fn) => {
-            match partition_info_fn(&current_state) {
-                Err(e) => None, // TODO
-                Ok(partition_info_state) => {
-                    current_state.partition_info_state = partition_info_state;
-                    current_state.current_view = if current_state.partition_info_state.is_some() { CurrentView::Partitions } else { CurrentView::Topics };
-                    Some(current_state.clone())
-                }
-            }
+            partition_info_fn(&current_state).map(|partition_info_state: Option<PartitionInfoState>| {
+                current_state.partition_info_state = partition_info_state;
+                current_state.current_view = if current_state.partition_info_state.is_some() { CurrentView::Partitions } else { CurrentView::Topics };
+                current_state.clone()
+            })
         }
     }
 }
