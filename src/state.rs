@@ -3,6 +3,9 @@ use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
 use kafka_protocol::protocol_responses::offsetfetch_response::PartitionResponse;
 use state::CurrentView::*;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 #[derive(Clone)]
 pub struct State {
@@ -13,7 +16,7 @@ pub struct State {
     pub marked_deleted: Vec<String>,
     pub topic_name_query: Option<String>,
     pub topic_info_state: Option<TopicInfoState>,
-    pub partition_info_state: Option<PartitionInfoState>
+    pub partition_info_state: Option<PartitionInfoState>,
 }
 
 #[derive(Clone)]
@@ -21,6 +24,20 @@ pub enum CurrentView {
     Topics,
     Partitions,
     TopicInfo,
+}
+
+pub type StateFn<T, E: Display> = Box<Fn(&State) -> Result<T, StateFNError<E>>>;
+
+#[derive(Debug)]
+pub struct StateFNError<T: Display> { pub error: String, pub cause: Option<T> }
+
+impl<T: Display> StateFNError<T> {
+    pub fn of(error: &str, cause: T) -> StateFNError<T> {
+        StateFNError { error: String::from(error), cause: Some(cause) }
+    }
+    pub fn just(error: &str) -> StateFNError<T> {
+        StateFNError { error: String::from(error), cause: None }
+    }
 }
 
 impl State {
@@ -78,5 +95,5 @@ pub struct TopicInfoState {
 #[derive(Clone)]
 pub struct PartitionInfoState {
     pub selected_index: usize,
-    pub partition_offsets: Vec<PartitionResponse>
+    pub partition_offsets: Vec<PartitionResponse>,
 }

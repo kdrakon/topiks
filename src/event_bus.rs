@@ -11,6 +11,8 @@ use state::*;
 use state::CurrentView;
 use std::cell::RefCell;
 use std::cell::RefMut;
+use std::collections::HashMap;
+use std::fmt::Display;
 use std::io::stdout;
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
@@ -41,15 +43,14 @@ pub enum Message {
 }
 
 enum Event {
-    Error(String),
     StateIdentity,
     UserInputUpdated(String),
-    ListTopics(Response<metadata_response::MetadataResponse>),
+    ListTopics(StateFn<metadata_response::MetadataResponse, TcpRequestError>),
     TopicSelected(fn(&State) -> usize),
     TopicQuerySet(Option<String>),
-    TopicDeleted(Box<Fn(&State) -> Option<String>>),
-    InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>),
-    PartitionsToggled(Box<Fn(&State) -> Option<PartitionInfoState>>),
+    TopicDeleted(StateFn<String, TcpRequestError>),
+    InfoToggled(StateFn<Option<TopicInfoState>, TcpRequestError>),
+    PartitionsToggled(StateFn<Option<PartitionInfoState>, TcpRequestError>),
 }
 
 pub fn start() -> Sender<Message> {
@@ -76,18 +77,16 @@ fn to_event(message: Message) -> Event {
         UserInput(input) => UserInputUpdated(input),
 
         GetTopics(BootstrapServer(bootstrap)) => {
-            let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
-                tcp_stream_util::request(
-                    bootstrap,
-                    Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
-                );
-            match result {
-                Ok(response) => ListTopics(response),
-                Err(e) => {
-                    eprintln!("{}", e.error);
-                    Error(e.error)
-                }
-            }
+            ListTopics(Box::from(move |state: &State| {
+                let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
+                    tcp_stream_util::request(
+                        bootstrap.clone(),
+                        Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
+                    );
+                result
+                    .map(|response| response.response_message)
+                    .map_err(|err| StateFNError::of("Error encountered trying to retrieve topics", err))
+            }))
         }
 
         SelectTopic(direction) => {
@@ -120,37 +119,35 @@ fn to_event(message: Message) -> Event {
 
         DeleteTopic(BootstrapServer(bootstrap)) => {
             TopicDeleted(Box::from(move |state: &State| {
-                state.metadata.as_ref().and_then(|metadata| {
-                    metadata.topic_metadata.get(state.selected_index).and_then(|delete_topic_metadata| {
+                state.metadata.as_ref().map(|metadata| {
+                    metadata.topic_metadata.get(state.selected_index).map(|delete_topic_metadata: &metadata_response::TopicMetadata| {
                         let delete_topic_name = delete_topic_metadata.topic.clone();
                         let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
                             tcp_stream_util::request(
                                 bootstrap.clone(),
                                 Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }, 20, 1),
                             );
-
                         match result {
                             Ok(response) => {
-                                if response.response_message.topic_error_codes.iter().all(|err| err.error_code == 0) {
-                                    Some(delete_topic_name)
+                                let map =
+                                    response.response_message.topic_error_codes.iter().map(|err| (&err.topic, err.error_code)).collect::<HashMap<&String, i16>>();
+                                if map.values().all(|err_code| *err_code == 0) {
+                                    Ok(delete_topic_name)
                                 } else {
-                                    None
+                                    Err(StateFNError::of("Failed to delete topic", TcpRequestError::of(format!("Non-zero topic error code encountered: {:?}", map))))
                                 }
                             }
-                            Err(err) => {
-                                eprintln!("{}", err.error);
-                                None
-                            }
+                            Err(err) => Err(StateFNError::of("Failed to delete topic", err))
                         }
-                    })
-                })
+                    }).unwrap_or(Err(StateFNError::just("Could not select or find topic to delete")))
+                }).unwrap_or(Err(StateFNError::just("Topic metadata not available")))
             }))
         }
 
         ToggleTopicInfo(BootstrapServer(bootstrap)) => {
             InfoToggled(Box::from(move |state: &State| {
                 match state.topic_info_state {
-                    Some(_) => None,
+                    Some(_) => Ok(None),
                     None => {
                         let resource = describeconfigs_request::Resource {
                             resource_type: describeconfigs_request::ResourceTypes::Topic as i8,
@@ -162,25 +159,21 @@ fn to_event(message: Message) -> Event {
                                 bootstrap.clone(),
                                 Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
                             );
-                        match result {
-                            Ok(response) => {
-                                state.selected_topic_metadata().and_then(|topic_metadata| {
+                        result
+                            .map_err(|err| StateFNError::of("DescribeConfigs request failed", err))
+                            .and_then(|response| {
+                                state.selected_topic_metadata().map(|topic_metadata| {
                                     let resource = response.response_message.resources
                                         .into_iter()
                                         .filter(|resource| resource.resource_name.eq(&state.selected_topic_name().unwrap()))
                                         .collect::<Vec<describeconfigs_response::Resource>>();
 
                                     match resource.first() {
-                                        None => None,
-                                        Some(resource) => Some(TopicInfoState { topic_metadata, config_resource: resource.clone() })
+                                        None => Err(StateFNError::of("", TcpRequestError::from("API response missing topic resource info"))),
+                                        Some(resource) => Ok(Some(TopicInfoState { topic_metadata, config_resource: resource.clone() }))
                                     }
-                                })
-                            }
-                            Err(err) => {
-                                eprintln!("{}", err.error);
-                                None
-                            }
-                        }
+                                }).unwrap_or(Err(StateFNError::just("Could not select or find topic metadata")))
+                            })
                     }
                 }
             }))
@@ -189,20 +182,26 @@ fn to_event(message: Message) -> Event {
         TogglePartitionInfo(BootstrapServer(bootstrap), opt_consumer_group) => {
             PartitionsToggled(Box::from(move |state: &State| {
                 match state.partition_info_state {
-                    Some(_) => None,
+                    Some(_) => Ok(None),
                     None => {
                         match opt_consumer_group {
-                            None => None,
+                            None => Ok(Some(PartitionInfoState { selected_index: 0, partition_offsets: vec![] })),
                             Some(ConsumerGroup(ref group_id)) => {
                                 let topic = state.selected_topic_metadata().map(|metadata| {
                                     offsetfetch_request::Topic { topic: metadata.topic.clone(), partitions: metadata.partition_metadata.iter().map(|p| p.partition).collect() }
                                 });
-                                topic.and_then(|topic| {
+                                topic.map(|topic| {
                                     let result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
                                         tcp_stream_util::request(
                                             bootstrap.clone(),
                                             Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
-                                        );
+                                        ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
+                                            if result.response_message.error_code != 0 {
+                                                Err(TcpRequestError::of(format!("Error code {}", result.response_message.error_code)))
+                                            } else {
+                                                Ok(result)
+                                            }
+                                        });
                                     let partition_responses =
                                         result.and_then(|result| {
                                             let responses = result.response_message.responses
@@ -214,16 +213,10 @@ fn to_event(message: Message) -> Event {
                                                 Some(partition_responses) => Ok(partition_responses)
                                             }
                                         });
-                                    match partition_responses {
-                                        Err(err) => {
-                                            eprintln!("{}", err.error);
-                                            None
-                                        }
-                                        Ok(partition_responses) => {
-                                            Some(PartitionInfoState { selected_index: 0, partition_offsets: partition_responses })
-                                        }
-                                    }
-                                })
+                                    partition_responses
+                                        .map(|partition_responses| Some(PartitionInfoState { selected_index: 0, partition_offsets: partition_responses }))
+                                        .map_err(|err| StateFNError::of("Error encountered trying to retrieve partition offsets", err))
+                                }).unwrap_or(Err(StateFNError::just("Could not select or find topic metadata")))
                             }
                         }
                     }
@@ -233,19 +226,23 @@ fn to_event(message: Message) -> Event {
     }
 }
 
-fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State> {
+fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State> { // TODO change to Result
     match event {
-        Error(_) => None,
         StateIdentity => Some(current_state.clone()),
         UserInputUpdated(input) => {
             current_state.user_input = if !input.is_empty() { Some(input) } else { None };
             Some(current_state.clone())
         }
-        ListTopics(response) => {
-            current_state.metadata = Some(response.response_message);
-            current_state.marked_deleted = vec![];
-            current_state.current_view = CurrentView::Topics;
-            Some(current_state.clone())
+        ListTopics(get_metadata) => {
+            match get_metadata(&current_state) {
+                Err(e) => None, // TODO
+                Ok(response) => {
+                    current_state.metadata = Some(response);
+                    current_state.marked_deleted = vec![];
+                    current_state.current_view = CurrentView::Topics;
+                    Some(current_state.clone())
+                }
+            }
         }
         TopicSelected(select_fn) => {
             current_state.selected_index = select_fn(&current_state);
@@ -255,28 +252,37 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
             current_state.topic_name_query = query;
             Some(current_state.clone())
         }
-        TopicDeleted(boxed_delete_fn) => {
-            let deleted_name = boxed_delete_fn(&current_state);
-            match deleted_name {
-                None => None,
-                Some(deleted_name) => {
+        TopicDeleted(delete_fn) => {
+            match delete_fn(&current_state) {
+                Err(e) => None, // TODO
+                Ok(deleted_name) => {
                     current_state.marked_deleted.push(deleted_name);
                     Some(current_state.clone())
                 }
             }
         }
         InfoToggled(toggle_fn) => {
-            current_state.topic_info_state = toggle_fn(&current_state);
-            current_state.current_view = match current_state.topic_info_state {
-                Some(_) => CurrentView::TopicInfo,
-                None => CurrentView::Topics
-            };
-            Some(current_state.clone())
+            match toggle_fn(&current_state) {
+                Err(e) => None, // TODO
+                Ok(topic_info_state) => {
+                    current_state.topic_info_state = topic_info_state;
+                    current_state.current_view = match current_state.topic_info_state {
+                        Some(_) => CurrentView::TopicInfo,
+                        None => CurrentView::Topics
+                    };
+                    Some(current_state.clone())
+                }
+            }
         }
         PartitionsToggled(partition_info_fn) => {
-            current_state.partition_info_state = partition_info_fn(&current_state);
-            current_state.current_view = if current_state.partition_info_state.is_some() { CurrentView::Partitions } else { CurrentView::Topics };
-            Some(current_state.clone())
+            match partition_info_fn(&current_state) {
+                Err(e) => None, // TODO
+                Ok(partition_info_state) => {
+                    current_state.partition_info_state = partition_info_state;
+                    current_state.current_view = if current_state.partition_info_state.is_some() { CurrentView::Partitions } else { CurrentView::Topics };
+                    Some(current_state.clone())
+                }
+            }
         }
     }
 }

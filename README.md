@@ -18,9 +18,20 @@ Much of my time with Kafka clusters involves working directly on either brokers 
 - get offset and lag for a consumer group 
 
 ## Usage
-```bash
-topiks [-m] [-d] --bootstrap-server localhost:9092
 ```
-- `-m` to enable topic modification
-- `-d` to enable topic deletion
+USAGE:
+    topiks [FLAGS] [OPTIONS] <bootstrap-server>
+
+FLAGS:
+    -D                              Enable topic deletion
+    -h, --help                      Prints help information
+        --no-delete-confirmation    Disable delete confirmation <Danger!>
+    -V, --version                   Prints version information
+
+OPTIONS:
+    -c, --consumer-group <consumer-group>    Consumer group for fetching offsets
+
+ARGS:
+    <bootstrap-server>    A single Kafka broker to connect to
+```
 

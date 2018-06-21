@@ -2,6 +2,9 @@ extern crate byteorder;
 
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_serializable::*;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 pub struct DeleteTopicsResponse {
     pub throttle_time_ms: i32,
@@ -12,6 +15,12 @@ pub struct DeleteTopicsResponse {
 pub struct TopicErrorCode {
     pub topic: String,
     pub error_code: i16
+}
+
+impl Display for TopicErrorCode {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "Topic Error for {}: {}", self.topic, self.error_code)
+    }
 }
 
 impl ProtocolDeserializable<DeleteTopicsResponse> for Vec<u8> {
