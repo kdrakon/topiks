@@ -4,16 +4,9 @@ use event_bus::Message::*;
 use event_bus::MoveSelection::*;
 use event_bus::TopicQuery::*;
 use kafka_protocol::protocol_request::Request;
-use kafka_protocol::protocol_requests::deletetopics_request::DeleteTopicsRequest;
-use kafka_protocol::protocol_requests::describeconfigs_request::DescribeConfigsRequest;
-use kafka_protocol::protocol_requests::describeconfigs_request::Resource;
-use kafka_protocol::protocol_requests::describeconfigs_request::ResourceTypes;
-use kafka_protocol::protocol_requests::metadata_request::MetadataRequest;
+use kafka_protocol::protocol_requests::*;
 use kafka_protocol::protocol_response::Response;
-use kafka_protocol::protocol_responses::deletetopics_response::DeleteTopicsResponse;
-use kafka_protocol::protocol_responses::describeconfigs_response::DescribeConfigsResponse;
-use kafka_protocol::protocol_responses::describeconfigs_response::Resource as ResponseResource;
-use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
+use kafka_protocol::protocol_responses::*;
 use state::*;
 use state::CurrentView;
 use std::cell::RefCell;
@@ -50,13 +43,13 @@ pub enum Message {
 enum Event {
     Error(String),
     StateIdentity,
-    DisplayUserInput(String),
-    ListTopics(Response<MetadataResponse>),
+    UserInputUpdated(String),
+    ListTopics(Response<metadata_response::MetadataResponse>),
     TopicSelected(fn(&State) -> usize),
     TopicQuerySet(Option<String>),
     TopicDeleted(Box<Fn(&State) -> Option<String>>),
     InfoToggled(Box<Fn(&State) -> Option<TopicInfoState>>),
-    PartitionsToggled(Box<Fn(&State) -> Option<PartitionInfoState>>) // TODO change to support consumer group offset retrieval
+    PartitionsToggled(Box<Fn(&State) -> Option<PartitionInfoState>>),
 }
 
 pub fn start() -> Sender<Message> {
@@ -80,13 +73,13 @@ fn to_event(message: Message) -> Event {
     match message {
         Noop => StateIdentity,
 
-        UserInput(input) => DisplayUserInput(input),
+        UserInput(input) => UserInputUpdated(input),
 
         GetTopics(BootstrapServer(bootstrap)) => {
-            let result: Result<Response<MetadataResponse>, TcpRequestError> =
+            let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
                 tcp_stream_util::request(
                     bootstrap,
-                    Request::of(MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
+                    Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
                 );
             match result {
                 Ok(response) => ListTopics(response),
@@ -130,10 +123,10 @@ fn to_event(message: Message) -> Event {
                 state.metadata.as_ref().and_then(|metadata| {
                     metadata.topic_metadata.get(state.selected_index).and_then(|delete_topic_metadata| {
                         let delete_topic_name = delete_topic_metadata.topic.clone();
-                        let result: Result<Response<DeleteTopicsResponse>, TcpRequestError> =
+                        let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
                             tcp_stream_util::request(
                                 bootstrap.clone(),
-                                Request::of(DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }, 20, 1),
+                                Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }, 20, 1),
                             );
 
                         match result {
@@ -159,15 +152,15 @@ fn to_event(message: Message) -> Event {
                 match state.topic_info_state {
                     Some(_) => None,
                     None => {
-                        let resource = Resource {
-                            resource_type: ResourceTypes::Topic as i8,
+                        let resource = describeconfigs_request::Resource {
+                            resource_type: describeconfigs_request::ResourceTypes::Topic as i8,
                             resource_name: state.selected_topic_name().expect("failure to get topic name"),
                             config_names: None,
                         };
-                        let result: Result<Response<DescribeConfigsResponse>, TcpRequestError> =
+                        let result: Result<Response<describeconfigs_response::DescribeConfigsResponse>, TcpRequestError> =
                             tcp_stream_util::request(
                                 bootstrap.clone(),
-                                Request::of(DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
+                                Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
                             );
                         match result {
                             Ok(response) => {
@@ -175,7 +168,7 @@ fn to_event(message: Message) -> Event {
                                     let resource = response.response_message.resources
                                         .into_iter()
                                         .filter(|resource| resource.resource_name.eq(&state.selected_topic_name().unwrap()))
-                                        .collect::<Vec<ResponseResource>>();
+                                        .collect::<Vec<describeconfigs_response::Resource>>();
 
                                     match resource.first() {
                                         None => None,
@@ -194,8 +187,47 @@ fn to_event(message: Message) -> Event {
         }
 
         TogglePartitionInfo(BootstrapServer(bootstrap), opt_consumer_group) => {
-            PartitionsToggled(Box::from(move|state: &State|{
-                None
+            PartitionsToggled(Box::from(move |state: &State| {
+                match state.partition_info_state {
+                    Some(_) => None,
+                    None => {
+                        match opt_consumer_group {
+                            None => None,
+                            Some(ConsumerGroup(ref group_id)) => {
+                                let topic = state.selected_topic_metadata().map(|metadata| {
+                                    offsetfetch_request::Topic { topic: metadata.topic.clone(), partitions: metadata.partition_metadata.iter().map(|p| p.partition).collect() }
+                                });
+                                topic.and_then(|topic| {
+                                    let result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
+                                        tcp_stream_util::request(
+                                            bootstrap.clone(),
+                                            Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
+                                        );
+                                    let partition_responses =
+                                        result.and_then(|result| {
+                                            let responses = result.response_message.responses
+                                                .into_iter()
+                                                .find(|response| response.topic.eq(&topic.topic))
+                                                .map(|response| response.partition_responses);
+                                            match responses {
+                                                None => Err(TcpRequestError::from("Topic not returned from API request")),
+                                                Some(partition_responses) => Ok(partition_responses)
+                                            }
+                                        });
+                                    match partition_responses {
+                                        Err(err) => {
+                                            eprintln!("{}", err.error);
+                                            None
+                                        }
+                                        Ok(partition_responses) => {
+                                            Some(PartitionInfoState { selected_index: 0, partition_offsets: partition_responses })
+                                        }
+                                    }
+                                })
+                            }
+                        }
+                    }
+                }
             }))
         }
     }
@@ -205,7 +237,7 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Option<State>
     match event {
         Error(_) => None,
         StateIdentity => Some(current_state.clone()),
-        DisplayUserInput(input) => {
+        UserInputUpdated(input) => {
             current_state.user_input = if !input.is_empty() { Some(input) } else { None };
             Some(current_state.clone())
         }
