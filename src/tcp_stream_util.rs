@@ -11,6 +11,7 @@ pub struct TcpRequestError { pub error: String }
 
 impl TcpRequestError {
     pub fn of(error: String) -> TcpRequestError { TcpRequestError { error } }
+    pub fn from(error: &str) -> TcpRequestError { TcpRequestError::of(String::from(error))}
 }
 
 pub fn request<A, T, U>(address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>
