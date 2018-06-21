@@ -6,6 +6,7 @@ use state::CurrentView::*;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct State {
@@ -95,5 +96,5 @@ pub struct TopicInfoState {
 #[derive(Clone)]
 pub struct PartitionInfoState {
     pub selected_index: usize,
-    pub partition_offsets: Vec<PartitionResponse>,
+    pub partition_offsets: HashMap<i32, PartitionResponse>,
 }
