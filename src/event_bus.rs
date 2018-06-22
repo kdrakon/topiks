@@ -35,7 +35,7 @@ pub enum Message {
     Noop,
     UserInput(String),
     GetTopics(BootstrapServer),
-    SelectTopic(MoveSelection),
+    Select(MoveSelection),
     SetTopicQuery(TopicQuery),
     DeleteTopic(BootstrapServer),
     ToggleTopicInfo(BootstrapServer),
@@ -46,7 +46,7 @@ enum Event {
     StateIdentity,
     UserInputUpdated(String),
     ListTopics(StateFn<metadata_response::MetadataResponse, TcpRequestError>),
-    TopicSelected(fn(&State) -> usize),
+    SelectionUpdated(StateFn<(CurrentView, usize), StateError>),
     TopicQuerySet(Option<String>),
     TopicDeleted(StateFn<String, TcpRequestError>),
     InfoToggled(StateFn<Option<TopicInfoState>, TcpRequestError>),
@@ -90,25 +90,46 @@ fn to_event(message: Message) -> Event {
             }))
         }
 
-        SelectTopic(direction) => {
-            match direction {
-                Up => TopicSelected(|state: &State| {
-                    if state.selected_index > 0 { state.selected_index - 1 } else { state.selected_index }
-                }),
-                Down => TopicSelected(|state: &State| {
-                    match state.metadata {
-                        Some(ref metadata) => if state.selected_index < (metadata.topic_metadata.len() - 1) { state.selected_index + 1 } else { state.selected_index },
-                        None => 0
+        Select(direction) => {
+            SelectionUpdated(Box::from(|state: &State| {
+                match state.current_view {
+                    CurrentView::Topics => {
+                        let selected_index =
+                            match direction {
+                                Up => if state.selected_index > 0 { state.selected_index - 1 } else { state.selected_index },
+                                Down => {
+                                    match state.metadata {
+                                        Some(ref metadata) => if state.selected_index < (metadata.topic_metadata.len() - 1) { state.selected_index + 1 } else { state.selected_index },
+                                        None => 0
+                                    }
+                                }
+                                Top => 0,
+                                Bottom => {
+                                    state.metadata.as_ref().map(|metadata| {
+                                        metadata.topic_metadata.len() - 1
+                                    }).unwrap_or(0)
+                                }
+                                SearchNext => state.find_next_index(false).unwrap_or(state.selected_index)
+                            };
+                        Ok((CurrentView::Topics, selected_index))
                     }
-                }),
-                Top => TopicSelected(|state: &State| 0),
-                Bottom => TopicSelected(|state: &State| {
-                    state.metadata.as_ref().map(|metadata| {
-                        metadata.topic_metadata.len() - 1
-                    }).unwrap_or(0)
-                }),
-                SearchNext => TopicSelected(|state: &State| state.find_next_index(false).unwrap_or(state.selected_index))
-            }
+                    CurrentView::Partitions => {
+                        let selected_index =
+                            state.partition_info_state.as_ref().map(|partition_info_state| {
+                                let selected_index = partition_info_state.selected_index;
+                                match direction {
+                                    Up => if selected_index > 0 { selected_index - 1 } else { selected_index },
+                                    Down => if selected_index < (partition_info_state.partition_metadata.len() - 1) { selected_index + 1 } else { selected_index },
+                                    Top => 0,
+                                    Bottom => partition_info_state.partition_metadata.len() - 1,
+                                    SearchNext => selected_index // not implemented
+                                }
+                            }).unwrap_or(0);
+                        Ok((CurrentView::Partitions, selected_index))
+                    }
+                    CurrentView::TopicInfo => Ok((CurrentView::TopicInfo, 0)) // not implemented
+                }
+            }))
         }
 
         SetTopicQuery(query) => {
@@ -185,44 +206,51 @@ fn to_event(message: Message) -> Event {
                 match state.partition_info_state {
                     Some(_) => Ok(None),
                     None => {
-                        match opt_consumer_group {
-                            None => Ok(Some(PartitionInfoState { selected_index: 0, partition_offsets: HashMap::new() })),
-                            Some(ConsumerGroup(ref group_id)) => {
-                                let topic = state.selected_topic_metadata().map(|metadata| {
-                                    offsetfetch_request::Topic { topic: metadata.topic.clone(), partitions: metadata.partition_metadata.iter().map(|p| p.partition).collect() }
-                                });
-                                topic.map(|topic| {
-                                    let result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
-                                        tcp_stream_util::request(
-                                            bootstrap.clone(),
-                                            Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
-                                        ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
-                                            if result.response_message.error_code != 0 {
-                                                Err(TcpRequestError::of(format!("Error code {}", result.response_message.error_code)))
-                                            } else {
-                                                Ok(result)
-                                            }
+                        state.metadata.as_ref()
+                            .and_then(|metadata| metadata.topic_metadata.get(state.selected_index))
+                            .map(|topic_metadata: &metadata_response::TopicMetadata| topic_metadata.partition_metadata)
+                            .map(|partition_metadata| {
+                                match opt_consumer_group {
+                                    None => Ok(Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets: HashMap::new() })),
+                                    Some(ConsumerGroup(ref group_id)) => {
+                                        let topic = state.selected_topic_metadata().map(|metadata| {
+                                            offsetfetch_request::Topic { topic: metadata.topic.clone(), partitions: metadata.partition_metadata.iter().map(|p| p.partition).collect() }
                                         });
-                                    let partition_responses =
-                                        result.and_then(|result| {
-                                            let responses = result.response_message.responses
-                                                .into_iter()
-                                                .find(|response| response.topic.eq(&topic.topic))
-                                                .map(|response| response.partition_responses);
-                                            match responses {
-                                                None => Err(TcpRequestError::from("Topic not returned from API request")),
-                                                Some(partition_responses) => Ok(partition_responses)
-                                            }
-                                        });
-                                    partition_responses
-                                        .map(|partition_responses| {
-                                            partition_responses.into_iter().map(|p| (p.partition, p)).collect::<HashMap<i32, offsetfetch_response::PartitionResponse>>()
-                                        })
-                                        .map(|partition_offsets| Some(PartitionInfoState { selected_index: 0, partition_offsets }))
-                                        .map_err(|err| StateFNError::of("Error encountered trying to retrieve partition offsets", err))
-                                }).unwrap_or(Err(StateFNError::just("Could not select or find topic metadata")))
-                            }
-                        }
+                                        topic.map(|topic| {
+                                            let result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
+                                                tcp_stream_util::request(
+                                                    bootstrap.clone(),
+                                                    Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
+                                                ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
+                                                    if result.response_message.error_code != 0 {
+                                                        Err(TcpRequestError::of(format!("Error code {}", result.response_message.error_code)))
+                                                    } else {
+                                                        Ok(result)
+                                                    }
+                                                });
+                                            let partition_responses =
+                                                result.and_then(|result| {
+                                                    let responses = result.response_message.responses
+                                                        .into_iter()
+                                                        .find(|response| response.topic.eq(&topic.topic))
+                                                        .map(|response| response.partition_responses);
+                                                    match responses {
+                                                        None => Err(TcpRequestError::from("Topic not returned from API request")),
+                                                        Some(partition_responses) => Ok(partition_responses)
+                                                    }
+                                                });
+                                            partition_responses
+                                                .map(|partition_responses| {
+                                                    partition_responses.into_iter().map(|p| (p.partition, p)).collect::<HashMap<i32, offsetfetch_response::PartitionResponse>>()
+                                                })
+                                                .map(|partition_offsets| {
+                                                    Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets })
+                                                })
+                                                .map_err(|err| StateFNError::caused("Error encountered trying to retrieve partition offsets", err))
+                                        }).unwrap_or(Err(StateFNError::just("Could not select or find topic metadata")))
+                                    }
+                                }
+                            }).unwrap_or(Err(StateFNError::just("Could not select or find partition metadata")))
                     }
                 }
             }))
@@ -245,9 +273,22 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
                 current_state.clone()
             })
         }
-        TopicSelected(select_fn) => {
-            current_state.selected_index = select_fn(&current_state);
-            Ok(current_state.clone())
+        SelectionUpdated(select_fn) => {
+            match select_fn(&current_state) {
+                Err(e) => Err(e),
+                Ok((CurrentView::Topics, selected_index)) => {
+                    current_state.selected_index = selected_index;
+                    Ok(current_state.clone())
+                }
+                Ok((CurrentView::Partitions, selected_index)) => {
+                    current_state.partition_info_state = current_state.partition_info_state.as_mut().map(|state| {
+                        state.selected_index = selected_index;
+                        state.clone()
+                    });
+                    Ok(current_state.clone())
+                }
+                Ok((CurrentView::TopicInfo, _)) => Ok(current_state.clone())
+            }
         }
         TopicQuerySet(query) => {
             current_state.topic_name_query = query;

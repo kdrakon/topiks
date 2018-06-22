@@ -7,6 +7,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::collections::HashMap;
+use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 
 #[derive(Clone)]
 pub struct State {
@@ -96,5 +97,6 @@ pub struct TopicInfoState {
 #[derive(Clone)]
 pub struct PartitionInfoState {
     pub selected_index: usize,
+    pub partition_metadata: Vec<PartitionMetadata>,
     pub partition_offsets: HashMap<i32, PartitionResponse>,
 }
