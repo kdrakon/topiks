@@ -13,6 +13,7 @@ pub enum ProtocolPrimitives {
     I8(i8),
     I16(i16),
     I32(i32),
+    I64(i64),
     Boolean(bool),
 }
 
@@ -49,6 +50,7 @@ impl ProtocolSerializable for ProtocolPrimitives {
                 I8(i) => payload.write_i8(i),
                 I16(i) => payload.write_i16::<BigEndian>(i),
                 I32(i) => payload.write_i32::<BigEndian>(i),
+                I64(i) => payload.write_i64::<BigEndian>(i),
                 Boolean(b) => payload.write_i8(if b { 1 } else { 0 })
             };
         serialized.map(|_| payload)

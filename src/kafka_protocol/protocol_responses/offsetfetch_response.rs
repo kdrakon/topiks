@@ -37,7 +37,7 @@ impl ProtocolDeserializable<OffsetFetchResponse> for Vec<u8> {
 
 fn deserialize_responses(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<Response>> {
     de_string(bytes).and_then(|(topic, bytes)| {
-        topic.ok_or_else(move || DeserializeError::of(String::from("Expected topic name"))).and_then(|topic| {
+        topic.ok_or_else(move || DeserializeError::of("Expected topic name")).and_then(|topic| {
             de_array(bytes, deserialize_partition_responses).map(|(partition_responses, bytes)| {
                 (Response { topic, partition_responses }, bytes)
             })
