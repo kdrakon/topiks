@@ -22,6 +22,7 @@ use tcp_stream_util;
 use tcp_stream_util::TcpRequestError;
 use termion::screen::AlternateScreen;
 use user_interface::ui;
+use utils;
 
 pub struct BootstrapServer(pub String);
 
@@ -211,46 +212,82 @@ fn to_event(message: Message) -> Event {
                             .and_then(|metadata| metadata.topic_metadata.get(state.selected_index))
                             .map(|topic_metadata: &metadata_response::TopicMetadata| &topic_metadata.partition_metadata)
                             .map(|partition_metadata| {
-                                match opt_consumer_group {
-                                    None => Ok(Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets: HashMap::new() })),
-                                    Some(ConsumerGroup(ref group_id)) => {
-                                        let topic = state.selected_topic_metadata().map(|metadata| {
-                                            offsetfetch_request::Topic { topic: metadata.topic.clone(), partitions: metadata.partition_metadata.iter().map(|p| p.partition).collect() }
-                                        });
-                                        topic.map(|topic| {
-                                            let result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
-                                                tcp_stream_util::request(
-                                                    bootstrap.clone(),
-                                                    Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
-                                                ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
-                                                    if result.response_message.error_code != 0 {
-                                                        Err(TcpRequestError::of(format!("Error code {}", result.response_message.error_code)))
-                                                    } else {
-                                                        Ok(result)
-                                                    }
-                                                });
-                                            let partition_responses =
-                                                result.and_then(|result| {
-                                                    let responses = result.response_message.responses
-                                                        .into_iter()
-                                                        .find(|response| response.topic.eq(&topic.topic))
-                                                        .map(|response| response.partition_responses);
-                                                    match responses {
-                                                        None => Err(TcpRequestError::from("Topic not returned from API request")),
-                                                        Some(partition_responses) => Ok(partition_responses)
-                                                    }
-                                                });
-                                            partition_responses
-                                                .map(|partition_responses| {
-                                                    partition_responses.into_iter().map(|p| (p.partition, p)).collect::<HashMap<i32, offsetfetch_response::PartitionResponse>>()
-                                                })
-                                                .map(|partition_offsets| {
-                                                    Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets })
-                                                })
-                                                .map_err(|err| StateFNError::caused("Error encountered trying to retrieve partition offsets", err))
-                                        }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
+                                let now = utils::current_ms() as i64;
+                                let topic = state.selected_topic_metadata().map(|metadata| {
+                                    listoffsets_request::Topic {
+                                        topic: metadata.topic.clone(),
+                                        partitions: metadata.partition_metadata.iter()
+                                            .map(|p| listoffsets_request::Partition { partition: p.partition, timestamp: now }).collect(),
                                     }
-                                }
+                                });
+
+                                let partition_responses =
+                                    topic.map(|topic| {
+                                        let listoffsets_response: Result<Response<listoffsets_response::ListOffsetsResponse>, TcpRequestError> =
+                                            tcp_stream_util::request(
+                                                bootstrap.clone(),
+                                                Request::of(listoffsets_request::ListOffsetsRequest { replica_id: 1001, isolation_level: 0, topics: vec![topic] }, 2, 2),
+                                            );
+                                        listoffsets_response.map_err(|err| StateFNError::caused("ListOffsets request failed", err))
+                                    }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
+                                        .and_then(|response| {
+                                            match response.response_message.responses.first() {
+                                                Some(topic_offsets) => Ok(topic_offsets.partition_responses.clone()),
+                                                None => Err(StateFNError::error("ListOffsets API did not return any topic offsets"))
+                                            }
+                                        });
+
+                                partition_responses.and_then(|partition_responses| {
+                                    let partition_offsets = partition_responses.into_iter().map(|partition_response| {
+                                        (partition_response.partition, partition_response)
+                                    }).collect::<HashMap<i32, listoffsets_response::PartitionResponse>>();
+
+                                    match opt_consumer_group {
+                                        None => Ok(Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets, consumer_offsets: HashMap::new() })),
+                                        Some(ConsumerGroup(ref group_id)) => {
+                                            let topic = state.selected_topic_metadata().map(|metadata| {
+                                                offsetfetch_request::Topic {
+                                                    topic: metadata.topic.clone(),
+                                                    partitions: metadata.partition_metadata.iter().map(|p| p.partition).collect(),
+                                                }
+                                            });
+                                            topic.map(|topic| {
+                                                let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
+                                                    tcp_stream_util::request(
+                                                        bootstrap.clone(),
+                                                        Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
+                                                    ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
+                                                        if result.response_message.error_code != 0 {
+                                                            Err(TcpRequestError::of(format!("Error code {}", result.response_message.error_code)))
+                                                        } else {
+                                                            Ok(result)
+                                                        }
+                                                    });
+
+                                                let partition_responses =
+                                                    offsetfetch_result.and_then(|result| {
+                                                        let responses = result.response_message.responses
+                                                            .into_iter()
+                                                            .find(|response| response.topic.eq(&topic.topic))
+                                                            .map(|response| response.partition_responses);
+                                                        match responses {
+                                                            None => Err(TcpRequestError::from("Topic not returned from API request")),
+                                                            Some(partition_responses) => Ok(partition_responses)
+                                                        }
+                                                    });
+
+                                                partition_responses
+                                                    .map(|partition_responses| {
+                                                        partition_responses.into_iter().map(|p| (p.partition, p)).collect::<HashMap<i32, offsetfetch_response::PartitionResponse>>()
+                                                    })
+                                                    .map(|consumer_offsets| {
+                                                        Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets, consumer_offsets })
+                                                    })
+                                                    .map_err(|err| StateFNError::caused("Error encountered trying to retrieve partition offsets", err))
+                                            }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
+                                        }
+                                    }
+                                })
                             }).unwrap_or(Err(StateFNError::error("Could not select or find partition metadata")))
                     }
                 }

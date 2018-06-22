@@ -19,6 +19,13 @@ pub fn to_hex_array(bytes: &Vec<u8>) -> Vec<String> {
     bytes.iter().cloned().map(|b|{format!("{:02X}", b)}).collect::<Vec<String>>()
 }
 
+pub fn current_ms() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now();
+    let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Failed to get current time");
+    (since_the_epoch.as_secs() * 1000) + (since_the_epoch.subsec_nanos() as u64 / 1_000_000)
+}
+
 pub struct PagedVec<'a, A: 'a> {
     indexes: usize,
     page_length: usize,

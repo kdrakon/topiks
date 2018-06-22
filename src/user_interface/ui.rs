@@ -84,11 +84,16 @@ fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), p
         let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&PartitionMetadata, usize)>>();
         let list_items =
             indexed.iter().map(|&(partition, index)| {
-                let partition_offset = partition_info_state.partition_offsets.get(&partition.partition);
-                Normal(format!(
-                    "{}Partition#{:3}{} -- Leader: {:4} Replicas: {:?} Offline Replicas: {:?} ISR: {:?} {:?}",
-                    style::Bold, partition.partition, style::Reset, partition.leader, partition.replicas, partition.offline_replicas, partition.isr, partition_offset
-                ))
+                let consumer_offset = partition_info_state.consumer_offsets.get(&partition.partition).map(|p|p.offset);
+                let partition_offset = partition_info_state.partition_offsets.get(&partition.partition).map(|p|p.offset);
+                if page_index == index {
+                    Selected(String::from("selected"))
+                } else {
+                    Normal(format!(
+                        "{}Partition#{:3}{} -- {:?} {:?}",
+                        style::Bold, partition.partition, style::Reset, consumer_offset, partition_offset
+                    ))
+                }
             }).collect::<Vec<ListItem>>();
 
         (SelectableList { list: list_items }).display(screen, (1, 1));
