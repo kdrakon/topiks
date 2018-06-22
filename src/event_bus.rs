@@ -45,12 +45,12 @@ pub enum Message {
 enum Event {
     StateIdentity,
     UserInputUpdated(String),
-    ListTopics(StateFn<metadata_response::MetadataResponse, TcpRequestError>),
-    SelectionUpdated(StateFn<(CurrentView, usize), StateError>),
+    ListTopics(StateFn<metadata_response::MetadataResponse>),
+    SelectionUpdated(StateFn<(CurrentView, usize)>),
     TopicQuerySet(Option<String>),
-    TopicDeleted(StateFn<String, TcpRequestError>),
-    InfoToggled(StateFn<Option<TopicInfoState>, TcpRequestError>),
-    PartitionsToggled(StateFn<Option<PartitionInfoState>, TcpRequestError>),
+    TopicDeleted(StateFn<String>),
+    InfoToggled(StateFn<Option<TopicInfoState>>),
+    PartitionsToggled(StateFn<Option<PartitionInfoState>>),
 }
 
 pub fn start() -> Sender<Message> {
@@ -62,7 +62,8 @@ pub fn start() -> Sender<Message> {
         for message in receiver {
             match update_state(to_event(message), state.borrow_mut()) {
                 Ok(updated_state) => state.swap(&RefCell::new(updated_state)),
-                Err(e) => panic!(e)
+                Err(StateFNError::Error(error)) => panic!(error),
+                Err(StateFNError::Caused(error, cause)) => panic!(error)
             }
             ui::update_with_state(&state.borrow());
         }
@@ -86,12 +87,12 @@ fn to_event(message: Message) -> Event {
                     );
                 result
                     .map(|response| response.response_message)
-                    .map_err(|err| StateFNError::of("Error encountered trying to retrieve topics", err))
+                    .map_err(|err| StateFNError::caused("Error encountered trying to retrieve topics", err))
             }))
         }
 
         Select(direction) => {
-            SelectionUpdated(Box::from(|state: &State| {
+            SelectionUpdated(Box::from(move |state: &State| {
                 match state.current_view {
                     CurrentView::Topics => {
                         let selected_index =
@@ -156,13 +157,13 @@ fn to_event(message: Message) -> Event {
                                 if map.values().all(|err_code| *err_code == 0) {
                                     Ok(delete_topic_name)
                                 } else {
-                                    Err(StateFNError::of("Failed to delete topic", TcpRequestError::of(format!("Non-zero topic error code encountered: {:?}", map))))
+                                    Err(StateFNError::caused("Failed to delete topic", TcpRequestError::of(format!("Non-zero topic error code encountered: {:?}", map))))
                                 }
                             }
-                            Err(err) => Err(StateFNError::of("Failed to delete topic", err))
+                            Err(err) => Err(StateFNError::caused("Failed to delete topic", err))
                         }
-                    }).unwrap_or(Err(StateFNError::just("Could not select or find topic to delete")))
-                }).unwrap_or(Err(StateFNError::just("Topic metadata not available")))
+                    }).unwrap_or(Err(StateFNError::error("Could not select or find topic to delete")))
+                }).unwrap_or(Err(StateFNError::error("Topic metadata not available")))
             }))
         }
 
@@ -182,7 +183,7 @@ fn to_event(message: Message) -> Event {
                                 Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
                             );
                         result
-                            .map_err(|err| StateFNError::of("DescribeConfigs request failed", err))
+                            .map_err(|err| StateFNError::caused("DescribeConfigs request failed", err))
                             .and_then(|response| {
                                 state.selected_topic_metadata().map(|topic_metadata| {
                                     let resource = response.response_message.resources
@@ -191,10 +192,10 @@ fn to_event(message: Message) -> Event {
                                         .collect::<Vec<describeconfigs_response::Resource>>();
 
                                     match resource.first() {
-                                        None => Err(StateFNError::of("", TcpRequestError::from("API response missing topic resource info"))),
+                                        None => Err(StateFNError::caused("", TcpRequestError::from("API response missing topic resource info"))),
                                         Some(resource) => Ok(Some(TopicInfoState { topic_metadata, config_resource: resource.clone() }))
                                     }
-                                }).unwrap_or(Err(StateFNError::just("Could not select or find topic metadata")))
+                                }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
                             })
                     }
                 }
@@ -208,7 +209,7 @@ fn to_event(message: Message) -> Event {
                     None => {
                         state.metadata.as_ref()
                             .and_then(|metadata| metadata.topic_metadata.get(state.selected_index))
-                            .map(|topic_metadata: &metadata_response::TopicMetadata| topic_metadata.partition_metadata)
+                            .map(|topic_metadata: &metadata_response::TopicMetadata| &topic_metadata.partition_metadata)
                             .map(|partition_metadata| {
                                 match opt_consumer_group {
                                     None => Ok(Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets: HashMap::new() })),
@@ -247,10 +248,10 @@ fn to_event(message: Message) -> Event {
                                                     Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets })
                                                 })
                                                 .map_err(|err| StateFNError::caused("Error encountered trying to retrieve partition offsets", err))
-                                        }).unwrap_or(Err(StateFNError::just("Could not select or find topic metadata")))
+                                        }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
                                     }
                                 }
-                            }).unwrap_or(Err(StateFNError::just("Could not select or find partition metadata")))
+                            }).unwrap_or(Err(StateFNError::error("Could not select or find partition metadata")))
                     }
                 }
             }))
@@ -258,7 +259,7 @@ fn to_event(message: Message) -> Event {
     }
 }
 
-fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State, StateFNError<impl Display>> {
+fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State, StateFNError> {
     match event {
         StateIdentity => Ok(current_state.clone()),
         UserInputUpdated(input) => {

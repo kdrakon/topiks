@@ -1,13 +1,13 @@
 use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
+use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
 use kafka_protocol::protocol_responses::offsetfetch_response::PartitionResponse;
 use state::CurrentView::*;
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::collections::HashMap;
-use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 
 #[derive(Clone)]
 pub struct State {
@@ -28,17 +28,19 @@ pub enum CurrentView {
     TopicInfo,
 }
 
-pub type StateFn<T, E: Display> = Box<Fn(&State) -> Result<T, StateFNError<E>>>;
+pub type StateFn<T> = Box<Fn(&State) -> Result<T, StateFNError>>;
 
-#[derive(Debug)]
-pub struct StateFNError<T: Display> { pub error: String, pub cause: Option<T> }
+pub enum StateFNError {
+    Error(String),
+    Caused(String, Box<Display>),
+}
 
-impl<T: Display> StateFNError<T> {
-    pub fn of(error: &str, cause: T) -> StateFNError<T> {
-        StateFNError { error: String::from(error), cause: Some(cause) }
+impl StateFNError {
+    pub fn caused<T: Display + 'static>(error: &str, cause: T) -> StateFNError {
+        StateFNError::Caused(String::from(error), Box::from(cause))
     }
-    pub fn just(error: &str) -> StateFNError<T> {
-        StateFNError { error: String::from(error), cause: None }
+    pub fn error(error: &str) -> StateFNError {
+        StateFNError::Error(String::from(error))
     }
 }
 
