@@ -99,16 +99,16 @@ fn main() {
                 }
             }
             Key::Up => {
-                sender.send(Message::SelectTopic(Up));
+                sender.send(Message::Select(Up));
             }
             Key::Down => {
-                sender.send(Message::SelectTopic(Down));
+                sender.send(Message::Select(Down));
             }
             Key::Home => {
-                sender.send(Message::SelectTopic(Top));
+                sender.send(Message::Select(Top));
             }
             Key::End => {
-                sender.send(Message::SelectTopic(Bottom));
+                sender.send(Message::Select(Bottom));
             }
             Key::Char('i') => {
                 sender.send(Message::ToggleTopicInfo(bootstrap_server()));
@@ -123,10 +123,10 @@ fn main() {
                     None => Message::SetTopicQuery(NoQuery)
                 };
                 sender.send(query);
-                sender.send(Message::SelectTopic(SearchNext));
+                sender.send(Message::Select(SearchNext));
             }
             Key::Char('n') => { // TODO support Shift+n for reverse
-                sender.send(Message::SelectTopic(SearchNext));
+                sender.send(Message::Select(SearchNext));
             }
             _ => {}
         }

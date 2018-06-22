@@ -38,8 +38,8 @@ pub fn update_with_state(state: &State) {
                 show_topics(screen, (width, height), metadata, state.selected_index, &state.marked_deleted);
             }
             CurrentView::Partitions => {
-                if let (Some(topic_metadata), Some(partition_info_state)) = (metadata.topic_metadata.get(state.selected_index).as_ref(), state.partition_info_state.as_ref()) {
-                    show_topic_partitions(screen, (width, height), topic_metadata, partition_info_state);
+                if let Some(partition_info_state) = state.partition_info_state.as_ref() {
+                    show_topic_partitions(screen, (width, height), partition_info_state);
                 }
             }
             CurrentView::TopicInfo => {
@@ -77,8 +77,8 @@ fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &
     }
 }
 
-fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), topic_metadata: &TopicMetadata, partition_info_state: &PartitionInfoState) {
-    let paged = PagedVec::from(&topic_metadata.partition_metadata, (height - 1) as usize);
+fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), partition_info_state: &PartitionInfoState) {
+    let paged = PagedVec::from(&partition_info_state.partition_metadata, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(partition_info_state.selected_index) {
         let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&PartitionMetadata, usize)>>();
