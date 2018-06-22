@@ -212,12 +212,11 @@ fn to_event(message: Message) -> Event {
                             .and_then(|metadata| metadata.topic_metadata.get(state.selected_index))
                             .map(|topic_metadata: &metadata_response::TopicMetadata| &topic_metadata.partition_metadata)
                             .map(|partition_metadata| {
-                                let now = utils::current_ms() as i64;
                                 let topic = state.selected_topic_metadata().map(|metadata| {
                                     listoffsets_request::Topic {
                                         topic: metadata.topic.clone(),
                                         partitions: metadata.partition_metadata.iter()
-                                            .map(|p| listoffsets_request::Partition { partition: p.partition, timestamp: now }).collect(),
+                                            .map(|p| listoffsets_request::Partition { partition: p.partition, timestamp: -1 }).collect(),
                                     }
                                 });
 
@@ -226,7 +225,7 @@ fn to_event(message: Message) -> Event {
                                         let listoffsets_response: Result<Response<listoffsets_response::ListOffsetsResponse>, TcpRequestError> =
                                             tcp_stream_util::request(
                                                 bootstrap.clone(),
-                                                Request::of(listoffsets_request::ListOffsetsRequest { replica_id: 1001, isolation_level: 0, topics: vec![topic] }, 2, 2),
+                                                Request::of(listoffsets_request::ListOffsetsRequest { replica_id: -1, isolation_level: 0, topics: vec![topic] }, 2, 2),
                                             );
                                         listoffsets_response.map_err(|err| StateFNError::caused("ListOffsets request failed", err))
                                     }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
