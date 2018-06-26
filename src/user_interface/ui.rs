@@ -1,6 +1,7 @@
 use kafka_protocol::protocol_responses::describeconfigs_response::ConfigEntry;
 use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
+use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
 use state::CurrentView;
 use state::PartitionInfoState;
@@ -19,13 +20,13 @@ use termion::raw::RawTerminal;
 use termion::screen::AlternateScreen;
 use termion::style;
 use termion::terminal_size;
+use user_interface::offset_progress_bar;
 use user_interface::selectable_list::ListItem;
 use user_interface::selectable_list::ListItem::*;
 use user_interface::selectable_list::SelectableList;
 use utils;
 use utils::pad_right;
 use utils::PagedVec;
-use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -84,15 +85,18 @@ fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), p
         let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&PartitionMetadata, usize)>>();
         let list_items =
             indexed.iter().map(|&(partition, index)| {
-                let consumer_offset = partition_info_state.consumer_offsets.get(&partition.partition).map(|p|p.offset);
-                let partition_offset = partition_info_state.partition_offsets.get(&partition.partition).map(|p|p.offset);
+                let consumer_offset = partition_info_state.consumer_offsets.get(&partition.partition).map(|p| p.offset);
+                let partition_offset = partition_info_state.partition_offsets.get(&partition.partition).map(|p| p.offset);
+                let progress = offset_progress_bar::new(consumer_offset.unwrap_or(0), partition_offset.unwrap_or(0), 25);
+                let label = format!(
+                    "{}▶{:<4}{} {}",
+                    style::Bold, partition.partition, style::Reset, progress
+                );
+
                 if page_index == index {
-                    Selected(String::from("selected"))
+                    Selected(label)
                 } else {
-                    Normal(format!(
-                        "{}Partition#{:3}{} -- {:?} {:?}",
-                        style::Bold, partition.partition, style::Reset, consumer_offset, partition_offset
-                    ))
+                    Normal(label)
                 }
             }).collect::<Vec<ListItem>>();
 
