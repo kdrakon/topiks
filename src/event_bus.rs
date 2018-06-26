@@ -87,7 +87,12 @@ fn to_event(message: Message) -> Event {
                         Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
                     );
                 result
-                    .map(|response| response.response_message)
+                    .map(|response| {
+                        let mut metadata_response = response.response_message;
+                        // sort by topic names before returning
+                        metadata_response.topic_metadata.sort_by(|a, b|a.topic.cmp(&b.topic));
+                        metadata_response
+                    })
                     .map_err(|err| StateFNError::caused("Error encountered trying to retrieve topics", err))
             }))
         }
@@ -212,6 +217,9 @@ fn to_event(message: Message) -> Event {
                             .and_then(|metadata| metadata.topic_metadata.get(state.selected_index))
                             .map(|topic_metadata: &metadata_response::TopicMetadata| &topic_metadata.partition_metadata)
                             .map(|partition_metadata| {
+                                let mut sorted_partition_metadata = partition_metadata.clone();
+                                sorted_partition_metadata.sort_by(|a, b| a.partition.cmp(&b.partition) );
+
                                 let topic = state.selected_topic_metadata().map(|metadata| {
                                     listoffsets_request::Topic {
                                         topic: metadata.topic.clone(),
@@ -242,7 +250,7 @@ fn to_event(message: Message) -> Event {
                                     }).collect::<HashMap<i32, listoffsets_response::PartitionResponse>>();
 
                                     match opt_consumer_group {
-                                        None => Ok(Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets, consumer_offsets: HashMap::new() })),
+                                        None => Ok(Some(PartitionInfoState { selected_index: 0, partition_metadata: sorted_partition_metadata, partition_offsets, consumer_offsets: HashMap::new() })),
                                         Some(ConsumerGroup(ref group_id)) => {
                                             let topic = state.selected_topic_metadata().map(|metadata| {
                                                 offsetfetch_request::Topic {
@@ -280,7 +288,7 @@ fn to_event(message: Message) -> Event {
                                                         partition_responses.into_iter().map(|p| (p.partition, p)).collect::<HashMap<i32, offsetfetch_response::PartitionResponse>>()
                                                     })
                                                     .map(|consumer_offsets| {
-                                                        Some(PartitionInfoState { selected_index: 0, partition_metadata: partition_metadata.clone(), partition_offsets, consumer_offsets })
+                                                        Some(PartitionInfoState { selected_index: 0, partition_metadata: sorted_partition_metadata, partition_offsets, consumer_offsets })
                                                     })
                                                     .map_err(|err| StateFNError::caused("Error encountered trying to retrieve partition offsets", err))
                                             }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
