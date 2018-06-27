@@ -18,11 +18,11 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
-use tcp_stream_util;
-use tcp_stream_util::TcpRequestError;
 use termion::screen::AlternateScreen;
 use user_interface::ui;
-use utils;
+use util::tcp_stream_util;
+use util::tcp_stream_util::TcpRequestError;
+use util::utils;
 
 pub struct BootstrapServer(pub String);
 

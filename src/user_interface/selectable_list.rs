@@ -1,6 +1,8 @@
-use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
+use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 use std::io::{Stdout, stdout, Write};
 use termion::{color, cursor, style};
+use user_interface::offset_progress_bar;
+use util::utils::VecToCSV;
 
 pub struct SelectableList<A>
     where A: SelectableListItem {
@@ -9,11 +11,12 @@ pub struct SelectableList<A>
 
 impl<A> SelectableList<A>
     where A: SelectableListItem {
-    pub fn display(&self, screen: &mut impl Write, (start_x, start_y): (u16, u16)) {
+    pub fn display(&self, screen: &mut impl Write, (start_x, start_y): (u16, u16), width: u16) {
         write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset).unwrap();
         self.list.iter().for_each(|list_item| {
-            write!(screen, "{}{}", list_item.display(), style::Reset).unwrap();
-            write!(screen, "{}{}", cursor::Left(list_item.label().len() as u16), cursor::Down(1)).unwrap();
+            let display = list_item.display();
+            write!(screen, "{}{}", display, style::Reset).unwrap();
+            write!(screen, "{}{}", cursor::Left(width), cursor::Down(1)).unwrap();
         });
         write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset).unwrap();
     }
@@ -21,28 +24,46 @@ impl<A> SelectableList<A>
 
 pub trait SelectableListItem {
     fn display(&self) -> String;
-    fn label(&self) -> &String;
 }
 
-pub enum ListItem {
-    Normal(String),
-    Selected(String),
-    Deleted(String),
+pub enum TopicListItem {
+    Normal(String, usize),
+    Deleted(String, usize),
+    Selected(Box<TopicListItem>),
 }
 
-impl SelectableListItem for ListItem {
+impl SelectableListItem for TopicListItem {
     fn display(&self) -> String {
         match &self {
-            ListItem::Normal(label) => format!("{}{}", color::Fg(color::Cyan), &label),
-            ListItem::Selected(label) => format!("{}{}{}", color::Fg(color::Black), color::Bg(color::White), &label),
-            ListItem::Deleted(label) => format!("{}{}{}", color::Fg(color::Green), color::Bg(color::Red), &label)
+            TopicListItem::Normal(label, partitions) => format!("{}{} [{}{}{}]", color::Fg(color::Cyan), &label, color::Fg(color::LightYellow), partitions, color::Fg(color::Cyan)),
+            TopicListItem::Deleted(label, partitions) => format!("{}{}{} [{}]", color::Fg(color::Black), color::Bg(color::LightRed), &label, partitions),
+            TopicListItem::Selected(topic_list_item) => format!("{}{}", color::Bg(color::LightBlack), topic_list_item.display())
         }
     }
-    fn label(&self) -> &String {
+}
+
+pub enum PartitionListItem {
+    Normal { partition: i32, partition_metadata: PartitionMetadata, consumer_offset: i64, partition_offset: i64 },
+    Selected(Box<PartitionListItem>),
+}
+
+impl SelectableListItem for PartitionListItem {
+    fn display(&self) -> String {
+        use self::PartitionListItem::*;
         match &self {
-            ListItem::Normal(label) => &label,
-            ListItem::Selected(label) => &label,
-            ListItem::Deleted(label) => &label
+            Normal { partition, partition_metadata, consumer_offset, partition_offset } => {
+                format!("{}▶ {}{:<4} {}{}{} C:{:10} OF:{:10} R:{} ISR:{} O:{}{}",
+                        color::Fg(color::LightYellow), color::Fg(color::Cyan),
+                        partition,
+                        color::Fg(color::Green), offset_progress_bar::new(*consumer_offset, *partition_offset, 10), color::Fg(color::Cyan),
+                        if *consumer_offset > 0 { format!("{}", consumer_offset) } else { String::from("--") },
+                        format!("{}", partition_offset),
+                        partition_metadata.replicas.as_csv(),
+                        partition_metadata.isr.as_csv(),
+                        color::Fg(color::LightRed), if !partition_metadata.offline_replicas.is_empty() { partition_metadata.offline_replicas.as_csv() } else { String::from("--") }
+                )
+            }
+            Selected(item) => format!("{}{}", color::Bg(color::LightBlack), item.display())
         }
     }
 }

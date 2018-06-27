@@ -7,6 +7,7 @@ extern crate termion;
 
 use clap::{App, Arg};
 use event_bus::BootstrapServer;
+use event_bus::ConsumerGroup;
 use event_bus::Message;
 use event_bus::MoveSelection::*;
 use event_bus::TopicQuery::*;
@@ -29,11 +30,9 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
-use event_bus::ConsumerGroup;
 
-pub mod utils;
+pub mod util;
 pub mod kafka_protocol;
-pub mod tcp_stream_util;
 pub mod event_bus;
 pub mod state;
 pub mod user_interface;
