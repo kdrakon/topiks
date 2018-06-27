@@ -70,6 +70,8 @@ fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &
                 let item =
                     if marked_deleted.contains(&topic_name) {
                         Deleted(topic_name, partitions)
+                    } else if topic_metadata.is_internal {
+                        Internal(topic_name, partitions)
                     } else {
                         Normal(topic_name, partitions)
                     };
