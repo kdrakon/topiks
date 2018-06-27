@@ -20,13 +20,12 @@ use termion::raw::RawTerminal;
 use termion::screen::AlternateScreen;
 use termion::style;
 use termion::terminal_size;
-use user_interface::offset_progress_bar;
-use user_interface::selectable_list::ListItem;
-use user_interface::selectable_list::ListItem::*;
+use user_interface::selectable_list::PartitionListItem;
 use user_interface::selectable_list::SelectableList;
-use utils;
-use utils::pad_right;
-use utils::PagedVec;
+use user_interface::selectable_list::TopicListItem;
+use util::paged_vec::PagedVec;
+use util::utils;
+use util::utils::pad_right;
 
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -57,6 +56,8 @@ pub fn update_with_state(state: &State) {
 }
 
 fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>) {
+    use user_interface::selectable_list::TopicListItem::*;
+
     let paged = PagedVec::from(&metadata.topic_metadata, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(selected_index) {
@@ -64,43 +65,38 @@ fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &
         let list_items =
             indexed.iter().map(|&(topic_metadata, index)| {
                 let topic_name = topic_metadata.topic.clone();
-                let topic_label = format!("{} [{}]", topic_name, topic_metadata.partition_metadata.len());
-                if page_index == index {
-                    Selected(topic_label)
-                } else if marked_deleted.contains(&topic_name) {
-                    Deleted(topic_name)
-                } else {
-                    Normal(topic_label)
-                }
-            }).collect::<Vec<ListItem>>();
+                let partitions = topic_metadata.partition_metadata.len();
 
-        (SelectableList { list: list_items }).display(screen, (1, 1));
+                let item =
+                    if marked_deleted.contains(&topic_name) {
+                        Deleted(topic_name, partitions)
+                    } else {
+                        Normal(topic_name, partitions)
+                    };
+                if page_index == index { Selected(Box::from(item)) } else { item }
+            }).collect::<Vec<TopicListItem>>();
+
+        (SelectableList { list: list_items }).display(screen, (1, 1), width);
     }
 }
 
 fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), partition_info_state: &PartitionInfoState) {
+    use user_interface::selectable_list::PartitionListItem::*;
+
     let paged = PagedVec::from(&partition_info_state.partition_metadata, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(partition_info_state.selected_index) {
         let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&PartitionMetadata, usize)>>();
         let list_items =
-            indexed.iter().map(|&(partition, index)| {
-                let consumer_offset = partition_info_state.consumer_offsets.get(&partition.partition).map(|p| p.offset);
-                let partition_offset = partition_info_state.partition_offsets.get(&partition.partition).map(|p| p.offset);
-                let progress = offset_progress_bar::new(consumer_offset.unwrap_or(0), partition_offset.unwrap_or(0), 25);
-                let label = format!(
-                    "{}▶{:<4}{} {}",
-                    style::Bold, partition.partition, style::Reset, progress
-                );
+            indexed.iter().map(|&(partition_metadata, index)| {
+                let consumer_offset = partition_info_state.consumer_offsets.get(&partition_metadata.partition).map(|p| p.offset).unwrap_or(-1);
+                let partition_offset = partition_info_state.partition_offsets.get(&partition_metadata.partition).map(|p| p.offset).unwrap_or(-1);
 
-                if page_index == index {
-                    Selected(label)
-                } else {
-                    Normal(label)
-                }
-            }).collect::<Vec<ListItem>>();
+                let item = Normal { partition: partition_metadata.partition, partition_metadata: (*partition_metadata).clone(), consumer_offset, partition_offset };
+                if page_index == index { Selected(Box::from(item)) } else { item }
+            }).collect::<Vec<PartitionListItem>>();
 
-        (SelectableList { list: list_items }).display(screen, (1, 1));
+        (SelectableList { list: list_items }).display(screen, (1, 1), width);
     }
 }
 

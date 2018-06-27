@@ -8,6 +8,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io::{Cursor, Read, Write};
 use std::net::*;
+use util::utils;
 
 #[derive(Debug)]
 pub struct TcpRequestError { pub error: String }
