@@ -1,33 +1,66 @@
 use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
+use kafka_protocol::protocol_responses::listoffsets_response;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
+use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
+use kafka_protocol::protocol_responses::offsetfetch_response;
+use state::CurrentView::*;
+use std::collections::HashMap;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 #[derive(Clone)]
 pub struct State {
+    pub user_input: Option<String>,
+    pub current_view: CurrentView,
     pub metadata: Option<MetadataResponse>,
     pub selected_index: usize,
     pub marked_deleted: Vec<String>,
     pub topic_name_query: Option<String>,
-    pub topic_info_state: Option<TopicInfoState>
+    pub topic_info_state: Option<TopicInfoState>,
+    pub partition_info_state: Option<PartitionInfoState>,
+}
+
+#[derive(Clone)]
+pub enum CurrentView {
+    Topics,
+    Partitions,
+    TopicInfo,
+}
+
+pub type StateFn<T> = Box<Fn(&State) -> Result<T, StateFNError>>;
+
+pub enum StateFNError {
+    Error(String),
+    Caused(String, Box<Display>),
+}
+
+impl StateFNError {
+    pub fn caused<T: Display + 'static>(error: &str, cause: T) -> StateFNError {
+        StateFNError::Caused(String::from(error), Box::from(cause))
+    }
+    pub fn error(error: &str) -> StateFNError {
+        StateFNError::Error(String::from(error))
+    }
 }
 
 impl State {
-
     pub fn new() -> State {
-        State { metadata: None, selected_index: 0, marked_deleted: vec![], topic_name_query: None, topic_info_state: None }
+        State { user_input: None, current_view: Topics, metadata: None, selected_index: 0, marked_deleted: vec![], topic_name_query: None, topic_info_state: None, partition_info_state: None }
     }
 
     pub fn selected_topic_name(&self) -> Option<String> {
-        self.metadata.as_ref().and_then(|metadata|{
-            metadata.topic_metadata.get(self.selected_index).map(|m: &TopicMetadata|{
+        self.metadata.as_ref().and_then(|metadata| {
+            metadata.topic_metadata.get(self.selected_index).map(|m: &TopicMetadata| {
                 m.topic.clone()
             })
         })
     }
 
     pub fn selected_topic_metadata(&self) -> Option<TopicMetadata> {
-        self.metadata.as_ref().and_then(|metadata|{
-            metadata.topic_metadata.get(self.selected_index).map(|topic_metadata|{
+        self.metadata.as_ref().and_then(|metadata| {
+            metadata.topic_metadata.get(self.selected_index).map(|topic_metadata| {
                 topic_metadata.clone()
             })
         })
@@ -61,5 +94,13 @@ impl State {
 #[derive(Clone)]
 pub struct TopicInfoState {
     pub topic_metadata: TopicMetadata,
-    pub config_resource: Resource
+    pub config_resource: Resource,
+}
+
+#[derive(Clone)]
+pub struct PartitionInfoState {
+    pub selected_index: usize,
+    pub partition_metadata: Vec<PartitionMetadata>,
+    pub partition_offsets: HashMap<i32, listoffsets_response::PartitionResponse>,
+    pub consumer_offsets: HashMap<i32, offsetfetch_response::PartitionResponse>,
 }

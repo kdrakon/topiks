@@ -5,15 +5,15 @@ use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
 pub struct DeleteTopicsRequest {
     pub topics: Vec<String>,
-    pub timeout: i32
+    pub timeout: i32,
 }
 
 impl ProtocolSerializable for DeleteTopicsRequest {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
-        let topics_bytes = self.topics.clone().into_protocol_bytes();
-
-        topics_bytes.and_then(|mut t| {
-            I32(self.timeout).into_protocol_bytes().map(|ref mut a| {
+        let topics = self.topics;
+        let timeout = I32(self.timeout);
+        topics.into_protocol_bytes().and_then(|mut t| {
+            timeout.into_protocol_bytes().map(|ref mut a| {
                 t.append(a);
                 t
             })
@@ -23,7 +23,6 @@ impl ProtocolSerializable for DeleteTopicsRequest {
 
 #[cfg(test)]
 mod tests {
-
     use kafka_protocol::protocol_requests::deletetopics_request::*;
 
     proptest! {

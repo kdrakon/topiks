@@ -7,6 +7,7 @@ extern crate termion;
 
 use clap::{App, Arg};
 use event_bus::BootstrapServer;
+use event_bus::ConsumerGroup;
 use event_bus::Message;
 use event_bus::MoveSelection::*;
 use event_bus::TopicQuery::*;
@@ -30,15 +31,15 @@ use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
 
-pub mod utils;
+pub mod util;
 pub mod kafka_protocol;
-pub mod tcp_stream_util;
 pub mod event_bus;
 pub mod state;
 pub mod user_interface;
 
 struct AppConfig<'a> {
     bootstrap_server: &'a str,
+    consumer_group: Option<&'a str>,
     request_timeout_ms: i32,
     topic_deletion: bool,
     topic_deletion_confirmation: bool,
@@ -50,12 +51,14 @@ fn main() {
     let matches = App::new("topiks")
         .version("1.1.0")
         .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
+        .arg(Arg::with_name("consumer-group").long("consumer-group").short("c").takes_value(true).help("Consumer group for fetching offsets"))
         .arg(Arg::with_name("delete").short("D").help("Enable topic deletion"))
         .arg(Arg::with_name("no-delete-confirmation").long("no-delete-confirmation").help("Disable delete confirmation <Danger!>"))
         .get_matches();
 
     let app_config = AppConfig {
         bootstrap_server: matches.value_of("bootstrap-server").unwrap(),
+        consumer_group: matches.value_of("consumer-group"),
         request_timeout_ms: 30_000,
         topic_deletion: matches.is_present("delete"),
         topic_deletion_confirmation: !matches.is_present("no-delete-confirmation"),
@@ -66,6 +69,8 @@ fn main() {
     let stdin = stdin();
 
     let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
+    let consumer_group = || app_config.consumer_group.clone().map(|cg| ConsumerGroup(String::from(cg)));
+
     sender.send(Message::GetTopics(bootstrap_server()));
 
     for key in stdin.keys() {
@@ -80,7 +85,7 @@ fn main() {
                 if app_config.topic_deletion {
                     if app_config.topic_deletion_confirmation {
                         let (width, height) = terminal_size().unwrap();
-                        if let Some(ref confirm) = user_input::read("delete?: ", (1, height)) {
+                        if let Some(ref confirm) = user_input::read("delete?: ", (1, height), sender.clone()) {
                             if confirm.eq("Yes") {
                                 sender.send(Message::DeleteTopic(bootstrap_server()));
                             } else {
@@ -93,31 +98,34 @@ fn main() {
                 }
             }
             Key::Up => {
-                sender.send(Message::SelectTopic(Up));
+                sender.send(Message::Select(Up));
             }
             Key::Down => {
-                sender.send(Message::SelectTopic(Down));
+                sender.send(Message::Select(Down));
             }
             Key::Home => {
-                sender.send(Message::SelectTopic(Top));
+                sender.send(Message::Select(Top));
             }
             Key::End => {
-                sender.send(Message::SelectTopic(Bottom));
+                sender.send(Message::Select(Bottom));
             }
             Key::Char('i') => {
                 sender.send(Message::ToggleTopicInfo(bootstrap_server()));
             }
+            Key::Char('p') => {
+                sender.send(Message::TogglePartitionInfo(bootstrap_server(), consumer_group()));
+            }
             Key::Char('/') => {
                 let (width, height) = terminal_size().unwrap();
-                let query = match user_input::read("/", (1, height)) {
+                let query = match user_input::read("/", (1, height), sender.clone()) {
                     Some(query) => Message::SetTopicQuery(Query(query)),
                     None => Message::SetTopicQuery(NoQuery)
                 };
                 sender.send(query);
-                sender.send(Message::SelectTopic(SearchNext));
+                sender.send(Message::Select(SearchNext));
             }
             Key::Char('n') => { // TODO support Shift+n for reverse
-                sender.send(Message::SelectTopic(SearchNext));
+                sender.send(Message::Select(SearchNext));
             }
             _ => {}
         }

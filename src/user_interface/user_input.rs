@@ -6,12 +6,13 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::screen::AlternateScreen;
 use termion::raw::IntoRawMode;
+use std::sync::mpsc::Sender;
+use event_bus::Message;
+use event_bus::Message::UserInput;
 
-pub fn read(label: &str, (cursor_x, cursor_y): (u16, u16)) -> Option<String> {
-    let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
+pub fn read(label: &str, (cursor_x, cursor_y): (u16, u16), sender: Sender<Message>) -> Option<String> {
     let stdin = std::io::stdin();
-    write!(screen, "{}{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine, label).unwrap();
-    screen.flush().unwrap();
+    sender.send(UserInput(String::from(label)));
 
     let mut input: Vec<char> = vec![];
     for key in stdin.keys() {
@@ -28,12 +29,10 @@ pub fn read(label: &str, (cursor_x, cursor_y): (u16, u16)) -> Option<String> {
             _ => {} // ignore everything else
         }
 
-        write!(screen, "{}{}{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine, label, input.iter().collect::<String>()).unwrap();
-        screen.flush().unwrap();
+        sender.send(UserInput(format!("{}{}", label, input.iter().collect::<String>())));
     }
 
-    write!(screen, "{}{}", cursor::Goto(cursor_x, cursor_y), clear::CurrentLine).unwrap();
-    screen.flush().unwrap();
+    sender.send(UserInput(String::from("")));
 
     let read = input.iter().collect::<String>();
     match read.len() {
