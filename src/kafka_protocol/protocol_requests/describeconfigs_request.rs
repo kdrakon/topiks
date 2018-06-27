@@ -25,9 +25,10 @@ pub enum ResourceTypes {
 
 impl ProtocolSerializable for DescribeConfigsRequest {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
-        let resources = self.resources.clone().into_protocol_bytes();
-        resources.and_then(|mut resources| {
-            ProtocolPrimitives::Boolean(self.include_synonyms).into_protocol_bytes().map(|ref mut include_synonyms|{
+        let resources = self.resources;
+        let include_synonyms = self.include_synonyms;
+        resources.into_protocol_bytes().and_then(|mut resources| {
+            ProtocolPrimitives::Boolean(include_synonyms).into_protocol_bytes().map(|ref mut include_synonyms|{
                 resources.append(include_synonyms);
                 resources
             })
@@ -37,9 +38,12 @@ impl ProtocolSerializable for DescribeConfigsRequest {
 
 impl ProtocolSerializable for Resource {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
-        ProtocolPrimitives::I8(self.resource_type).into_protocol_bytes().and_then(|mut resource_type|{
-            self.resource_name.clone().into_protocol_bytes().and_then(|ref mut resource_name|{
-                self.config_names.into_protocol_bytes().map(|ref mut config_names|{
+        let resource_type = ProtocolPrimitives::I8(self.resource_type);
+        let resource_name = self.resource_name;
+        let config_names = self.config_names;
+        resource_type.into_protocol_bytes().and_then(|mut resource_type|{
+            resource_name.clone().into_protocol_bytes().and_then(|ref mut resource_name|{
+                config_names.into_protocol_bytes().map(|ref mut config_names|{
                     resource_type.append(resource_name);
                     resource_type.append(config_names);
                     resource_type

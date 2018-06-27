@@ -3,14 +3,25 @@ use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_serializable::*;
 use std::error::Error;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::io::{Cursor, Read, Write};
 use std::net::*;
+use util::utils;
 
 #[derive(Debug)]
 pub struct TcpRequestError { pub error: String }
 
+impl Display for TcpRequestError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "TCP Request Error: {}", self.error)
+    }
+}
+
 impl TcpRequestError {
     pub fn of(error: String) -> TcpRequestError { TcpRequestError { error } }
+    pub fn from(error: &str) -> TcpRequestError { TcpRequestError::of(String::from(error)) }
 }
 
 pub fn request<A, T, U>(address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>

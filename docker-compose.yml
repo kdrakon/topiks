@@ -20,7 +20,7 @@ services:
 
   broker:
     image: 'confluentinc/cp-kafka:4.1.0'
-    hostname: broker
+    hostname: broker_0
     stop_grace_period: 120s
     depends_on:
       - zookeeper
@@ -29,10 +29,31 @@ services:
     environment:
       TZ: Australia/Sydney
       COMPONENT: kafka
+      KAFKA_BROKER_ID: 1000
+      KAFKA_RESERVED_BROKER_MAX_ID: 10000
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker_0:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+    extra_hosts:
+      - "moby:127.0.0.1"
+
+  broker_1:
+    image: 'confluentinc/cp-kafka:4.1.0'
+    hostname: broker_1
+    stop_grace_period: 120s
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9092"
+    environment:
+      TZ: Australia/Sydney
+      COMPONENT: kafka
       KAFKA_BROKER_ID: 1001
       KAFKA_RESERVED_BROKER_MAX_ID: 10000
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker_1:9093'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'

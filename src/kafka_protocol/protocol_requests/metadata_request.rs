@@ -11,8 +11,10 @@ pub struct MetadataRequest {
 
 impl ProtocolSerializable for MetadataRequest {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
-        self.topics.clone().into_protocol_bytes().and_then(|mut topic_bytes| {
-            Boolean(self.allow_auto_topic_creation).into_protocol_bytes().map(|ref mut a| {
+        let topics = self.topics;
+        let allow_auto_topic_creation = Boolean(self.allow_auto_topic_creation);
+        topics.into_protocol_bytes().and_then(|mut topic_bytes| {
+            allow_auto_topic_creation.into_protocol_bytes().map(|ref mut a| {
                 topic_bytes.append(a);
                 topic_bytes
             })
