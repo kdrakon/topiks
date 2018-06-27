@@ -28,6 +28,7 @@ pub trait SelectableListItem {
 
 pub enum TopicListItem {
     Normal(String, usize),
+    Internal(String, usize),
     Deleted(String, usize),
     Selected(Box<TopicListItem>),
 }
@@ -36,6 +37,8 @@ impl SelectableListItem for TopicListItem {
     fn display(&self) -> String {
         match &self {
             TopicListItem::Normal(label, partitions) => format!("{}{} [{}{}{}]", color::Fg(color::Cyan), &label, color::Fg(color::LightYellow), partitions, color::Fg(color::Cyan)),
+            TopicListItem::Internal(label, partitions) =>
+                format!("{}{}{} [{}{}{}]", color::Fg(color::LightMagenta), &label, color::Fg(color::Cyan), color::Fg(color::LightYellow), partitions, color::Fg(color::Cyan)),
             TopicListItem::Deleted(label, partitions) => format!("{}{}{} [{}]", color::Fg(color::Black), color::Bg(color::LightRed), &label, partitions),
             TopicListItem::Selected(topic_list_item) => format!("{}{}", color::Bg(color::LightBlack), topic_list_item.display())
         }
