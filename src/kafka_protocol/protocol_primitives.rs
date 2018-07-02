@@ -8,7 +8,7 @@ use std::io::*;
 
 /// Primitive types supported by Kafka protocol.
 /// Primarily wrapped for convenience with ProtocolSerializable.
-///
+#[derive(Clone)]
 pub enum ProtocolPrimitives {
     I8(i8),
     I16(i16),

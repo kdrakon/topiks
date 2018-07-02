@@ -10,7 +10,7 @@ use util::utils;
 /// If implemented, a struct/enum can be sent on the wire to a
 /// Kafka broker.
 ///
-pub trait ProtocolSerializable {
+pub trait ProtocolSerializable: Clone {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult;
 }
 

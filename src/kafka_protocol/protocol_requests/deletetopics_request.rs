@@ -3,6 +3,7 @@ use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
 use kafka_protocol::protocol_serializable::*;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
+#[derive(Clone)]
 pub struct DeleteTopicsRequest {
     pub topics: Vec<String>,
     pub timeout: i32,

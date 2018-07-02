@@ -4,7 +4,7 @@ use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
 /// Version 3
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OffsetFetchRequest {
     pub group_id: String,
     pub topics: Vec<Topic>,

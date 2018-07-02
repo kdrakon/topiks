@@ -3,17 +3,20 @@ use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
 use kafka_protocol::protocol_serializable::*;
 
 /// Version 2
+#[derive(Clone)]
 pub struct ListOffsetsRequest {
     pub replica_id: i32,
     pub isolation_level: i8,
     pub topics: Vec<Topic>,
 }
 
+#[derive(Clone)]
 pub struct Topic {
     pub topic: String,
     pub partitions: Vec<Partition>,
 }
 
+#[derive(Clone)]
 pub struct Partition {
     pub partition: i32,
     pub timestamp: i64,
