@@ -2,6 +2,7 @@ use kafka_protocol::protocol_primitives::ProtocolPrimitives;
 use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
+#[derive(Clone)]
 pub struct DescribeConfigsRequest {
     pub resources: Vec<Resource>,
     pub include_synonyms: bool

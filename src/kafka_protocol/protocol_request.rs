@@ -4,12 +4,13 @@ use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
 /// Top-level request which can be sent to a Kafka broker.
 ///
-pub struct Request<T> {
+#[derive(Clone)]
+pub struct Request<T: ProtocolSerializable> {
     pub header: RequestHeader,
     pub request_message: T,
 }
 
-impl <A> Request<A> {
+impl<A: ProtocolSerializable> Request<A> {
     pub fn of(a: A, api_key: i16, api_version: i16) -> Request<A> {
         Request {
             header: RequestHeader {
@@ -46,6 +47,7 @@ impl<T> ProtocolSerializable for Request<T>
 
 /// Header information for a Request
 ///
+#[derive(Clone)]
 pub struct RequestHeader {
     pub api_key: i16,
     pub api_version: i16,

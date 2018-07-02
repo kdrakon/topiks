@@ -4,6 +4,7 @@ use kafka_protocol::protocol_serializable::*;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 use kafka_protocol::protocol_request::*;
 
+#[derive(Clone)]
 pub struct MetadataRequest {
     pub topics: Option<Vec<String>>,
     pub allow_auto_topic_creation: bool

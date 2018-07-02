@@ -46,7 +46,7 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - "9093:9092"
+      - "9093:9093"
     environment:
       TZ: Australia/Sydney
       COMPONENT: kafka
