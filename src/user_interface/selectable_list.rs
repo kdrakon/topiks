@@ -55,12 +55,13 @@ impl SelectableListItem for PartitionListItem {
         use self::PartitionListItem::*;
         match &self {
             Normal { partition, partition_metadata, consumer_offset, partition_offset } => {
-                format!("{}▶ {}{:<4} {}{}{} C:{:10} OF:{:10} R:{} ISR:{} O:{}{}",
+                format!("{}▶ {}{:<4} {}{}{} C:{:10} OF:{:10} L:{} R:{} ISR:{} O:{}{}",
                         color::Fg(color::LightYellow), color::Fg(color::Cyan),
                         partition,
                         color::Fg(color::Green), offset_progress_bar::new(*consumer_offset, *partition_offset, 10), color::Fg(color::Cyan),
                         if *consumer_offset > 0 { format!("{}", consumer_offset) } else { String::from("--") },
                         format!("{}", partition_offset),
+                        partition_metadata.leader,
                         partition_metadata.replicas.as_csv(),
                         partition_metadata.isr.as_csv(),
                         color::Fg(color::LightRed), if !partition_metadata.offline_replicas.is_empty() { partition_metadata.offline_replicas.as_csv() } else { String::from("--") }
