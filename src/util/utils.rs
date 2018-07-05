@@ -36,3 +36,17 @@ impl<T: Display> VecToCSV for Vec<T> {
         format!("{}", self.iter().fold(String::from(""), fold))
     }
 }
+
+pub trait Flatten<A> {
+    fn flatten(self) -> Vec<A>;
+}
+
+impl <A> Flatten<A> for Vec<Vec<A>> {
+    fn flatten(self) -> Vec<A> {
+        let mut init = vec![];
+        self.into_iter().fold(init, |mut acc, mut a| {
+            acc.append(&mut a);
+            acc
+        })
+    }
+}

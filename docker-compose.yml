@@ -44,7 +44,7 @@ services:
     hostname: broker_1
     stop_grace_period: 120s
     depends_on:
-      - zookeeper
+      - broker
     ports:
       - "9093:9093"
     environment:
