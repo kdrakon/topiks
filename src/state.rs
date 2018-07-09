@@ -12,6 +12,7 @@ use std::fmt::Formatter;
 
 #[derive(Clone)]
 pub struct State {
+    pub message: Option<String>,
     pub user_input: Option<String>,
     pub current_view: CurrentView,
     pub metadata: Option<MetadataResponse>,
@@ -47,7 +48,7 @@ impl StateFNError {
 
 impl State {
     pub fn new() -> State {
-        State { user_input: None, current_view: Topics, metadata: None, selected_index: 0, marked_deleted: vec![], topic_name_query: None, topic_info_state: None, partition_info_state: None }
+        State { message: None, user_input: None, current_view: Topics, metadata: None, selected_index: 0, marked_deleted: vec![], topic_name_query: None, topic_info_state: None, partition_info_state: None }
     }
 
     pub fn selected_topic_name(&self) -> Option<String> {
