@@ -27,7 +27,8 @@ use util::utils::Flatten;
 
 pub struct BootstrapServer(pub String);
 
-pub struct ConsumerGroup(pub String);
+#[derive(Clone)]
+pub struct ConsumerGroup(pub String, pub findcoordinator_response::Coordinator);
 
 pub enum MoveSelection { Up, Down, Top, Bottom, SearchNext }
 
@@ -271,71 +272,36 @@ fn to_event(message: Message) -> Event {
 
                                     match opt_consumer_group {
                                         None => Ok(Some(PartitionInfoState { selected_index: 0, partition_metadata: sorted_partition_metadata, partition_offsets, consumer_offsets: HashMap::new() })),
-                                        Some(ConsumerGroup(ref group_id)) => {
-                                            let consumer_offset_requests =
-                                                partitions_grouped_by_broker.into_iter().map(|(broker_id, partitions)| {
-                                                    (broker_id_to_host_map.get(&broker_id).map(|s| s.clone()).unwrap_or(bootstrap.clone()),
-                                                     offsetfetch_request::Topic {
-                                                         topic: topic_metadata.topic.clone(),
-                                                         partitions,
-                                                     })
-                                                }).collect::<Vec<(String, offsetfetch_request::Topic)>>();
+                                        Some(ConsumerGroup(ref group_id, ref coordinator)) => {
+                                            let topic =
+                                                offsetfetch_request::Topic {
+                                                    topic: topic_metadata.topic.clone(),
+                                                    partitions: topic_metadata.partition_metadata.iter().map(|p| p.partition).collect(),
+                                                };
+
+                                            let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
+                                                tcp_stream_util::request(
+                                                    format!("{}:{}", coordinator.host, coordinator.port),
+                                                    Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
+                                                ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
+                                                    if result.response_message.error_code != 0 {
+                                                        Err(TcpRequestError::of(format!("Error code {} with OffsetFetchRequest", result.response_message.error_code)))
+                                                    } else {
+                                                        Ok(result)
+                                                    }
+                                                });
 
                                             let partition_responses =
-                                                consumer_offset_requests.into_iter().map(|(broker_address, topic)| {
-                                                    let response: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
-                                                        tcp_stream_util::request(
-                                                            broker_address,
-                                                            Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
-                                                        );
-                                                    response.and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
-                                                        if result.response_message.error_code != 0 {
-                                                            Err(TcpRequestError::of(format!("Error code {} with OffsetFetchRequest", result.response_message.error_code)))
-                                                        } else {
-                                                            Ok(result.response_message.responses)
-                                                        }
-                                                    }).and_then(|responses| {
-                                                        let partition_responses =
-                                                            responses.into_iter()
-                                                                .find(|response| response.topic.eq(&topic.topic))
-                                                                .map(|response| response.partition_responses);
-                                                        match partition_responses {
-                                                            None => Err(TcpRequestError::from("Topic not returned from API request")),
-                                                            Some(partition_responses) => Ok(partition_responses)
-                                                        }
-                                                    })
-                                                }).collect::<Result<Vec<Vec<offsetfetch_response::PartitionResponse>>, TcpRequestError>>()
-                                                    .map(|vecs| vecs.flatten());
-
-//                                            let topic =
-//                                                offsetfetch_request::Topic {
-//                                                    topic: topic_metadata.topic.clone(),
-//                                                    partitions: topic_metadata.partition_metadata.iter().map(|p| p.partition).collect(),
-//                                                };
-//
-//                                            let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
-//                                                tcp_stream_util::request(
-//                                                    bootstrap.clone(),
-//                                                    Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
-//                                                ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
-//                                                    if result.response_message.error_code != 0 {
-//                                                        Err(TcpRequestError::of(format!("Error code {} with OffsetFetchRequest", result.response_message.error_code)))
-//                                                    } else {
-//                                                        Ok(result)
-//                                                    }
-//                                                });
-//
-//                                            let partition_responses =
-//                                                offsetfetch_result.and_then(|result| {
-//                                                    let responses = result.response_message.responses
-//                                                        .into_iter()
-//                                                        .find(|response| response.topic.eq(&topic.topic))
-//                                                        .map(|response| response.partition_responses);
-//                                                    match responses {
-//                                                        None => Err(TcpRequestError::from("Topic not returned from API request")),
-//                                                        Some(partition_responses) => Ok(partition_responses)
-//                                                    }
-//                                                });
+                                                offsetfetch_result.and_then(|result| {
+                                                    let responses = result.response_message.responses
+                                                        .into_iter()
+                                                        .find(|response| response.topic.eq(&topic.topic))
+                                                        .map(|response| response.partition_responses);
+                                                    match responses {
+                                                        None => Err(TcpRequestError::from("Topic not returned from API request")),
+                                                        Some(partition_responses) => Ok(partition_responses)
+                                                    }
+                                                });
 
                                             partition_responses
                                                 .map(|partition_responses| {

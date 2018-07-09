@@ -13,9 +13,11 @@ use event_bus::MoveSelection::*;
 use event_bus::TopicQuery::*;
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::deletetopics_request::*;
+use kafka_protocol::protocol_requests::findcoordinator_request::FindCoordinatorRequest;
 use kafka_protocol::protocol_requests::metadata_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::deletetopics_response::*;
+use kafka_protocol::protocol_responses::findcoordinator_response::FindCoordinatorResponse;
 use kafka_protocol::protocol_responses::metadata_response::*;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_serializable::*;
@@ -30,6 +32,8 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
+use kafka_protocol::protocol_requests::findcoordinator_request::CoordinatorType;
+use util::tcp_stream_util::TcpRequestError;
 
 pub mod util;
 pub mod kafka_protocol;
@@ -69,7 +73,24 @@ fn main() {
     let stdin = stdin();
 
     let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
-    let consumer_group = || app_config.consumer_group.clone().map(|cg| ConsumerGroup(String::from(cg)));
+
+    let consumer_group = app_config.consumer_group.clone().and_then(|cg| {
+        let find_coordinator_response: Result<Response<FindCoordinatorResponse>, TcpRequestError> =
+            util::tcp_stream_util::request(app_config.bootstrap_server,
+                                           Request::of(
+                                               FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 },
+                                               10,
+                                               1,
+                                           ),
+            );
+        find_coordinator_response.ok().and_then(|find_coordinator_response| {
+            if find_coordinator_response.response_message.error_code == 0 {
+                Some(ConsumerGroup(String::from(cg), find_coordinator_response.response_message.coordinator))
+            } else {
+                None // TODO report FindCoordinatorRequest error
+            }
+        })
+    });
 
     sender.send(Message::GetTopics(bootstrap_server()));
 
@@ -113,7 +134,7 @@ fn main() {
                 sender.send(Message::ToggleTopicInfo(bootstrap_server()));
             }
             Key::Char('p') => {
-                sender.send(Message::TogglePartitionInfo(bootstrap_server(), consumer_group()));
+                sender.send(Message::TogglePartitionInfo(bootstrap_server(), consumer_group.clone()));
             }
             Key::Char('/') => {
                 let (width, height) = terminal_size().unwrap();

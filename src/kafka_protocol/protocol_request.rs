@@ -11,7 +11,7 @@ pub struct Request<T: ProtocolSerializable> {
 }
 
 impl<A: ProtocolSerializable> Request<A> {
-    pub fn of(a: A, api_key: i16, api_version: i16) -> Request<A> {
+    pub fn of(request_message: A, api_key: i16, api_version: i16) -> Request<A> {
         Request {
             header: RequestHeader {
                 api_key,
@@ -19,7 +19,7 @@ impl<A: ProtocolSerializable> Request<A> {
                 correlation_id: 42,
                 client_id: String::from("topiks"),
             },
-            request_message: a,
+            request_message,
         }
     }
 }
