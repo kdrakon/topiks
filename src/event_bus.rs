@@ -36,6 +36,7 @@ pub enum TopicQuery { NoQuery, Query(String) }
 
 pub enum Message {
     Noop,
+    DisplayUIMessage(UIMessage),
     UserInput(String),
     GetTopics(BootstrapServer),
     Select(MoveSelection),
@@ -47,6 +48,7 @@ pub enum Message {
 
 enum Event {
     StateIdentity,
+    ShowUIMessage(UIMessage),
     UserInputUpdated(String),
     ListTopics(StateFn<metadata_response::MetadataResponse>),
     SelectionUpdated(StateFn<(CurrentView, usize)>),
@@ -59,16 +61,18 @@ enum Event {
 pub fn start() -> Sender<Message> {
     let (sender, receiver): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
+    let thread_sender = sender.clone();
     thread::spawn(move || {
         let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
 
         for message in receiver {
             match update_state(to_event(message), state.borrow_mut()) {
                 Ok(updated_state) => state.swap(&RefCell::new(updated_state)),
-                Err(StateFNError::Error(error)) => panic!(error),
+                Err(StateFNError::Error(error)) => {
+                    thread_sender.send(Message::DisplayUIMessage(UIMessage::Error(error)));
+                },
                 Err(StateFNError::Caused(error, cause)) => {
-                    println!("Cause {}", cause);
-                    panic!(error); // TODO need to exit better on error
+                    thread_sender.send(Message::DisplayUIMessage(UIMessage::Error(format!("{}: {}", error, cause))));
                 }
             }
             ui::update_with_state(&state.borrow());
@@ -81,9 +85,8 @@ pub fn start() -> Sender<Message> {
 fn to_event(message: Message) -> Event {
     match message {
         Noop => StateIdentity,
-
+        DisplayUIMessage(message) => ShowUIMessage(message),
         UserInput(input) => UserInputUpdated(input),
-
         GetTopics(BootstrapServer(bootstrap)) => {
             ListTopics(Box::from(move |state: &State| {
                 let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
@@ -327,6 +330,10 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
         StateIdentity => Ok(current_state.clone()),
         UserInputUpdated(input) => {
             current_state.user_input = if !input.is_empty() { Some(input) } else { None };
+            Ok(current_state.clone())
+        }
+        ShowUIMessage(message) => {
+            current_state.message = Some(message);
             Ok(current_state.clone())
         }
         ListTopics(get_metadata) => {

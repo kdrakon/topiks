@@ -67,8 +67,8 @@ fn main() {
         topic_deletion: matches.is_present("delete"),
         topic_deletion_confirmation: !matches.is_present("no-delete-confirmation"),
     };
-    let sender = event_bus::start();
 
+    let sender = event_bus::start();
     let stdout = &mut AlternateScreen::from(std::io::stdout().into_raw_mode().unwrap()); // raw mode to avoid screen output
     let stdin = stdin();
 
@@ -87,7 +87,8 @@ fn main() {
             if find_coordinator_response.response_message.error_code == 0 {
                 Some(ConsumerGroup(String::from(cg), find_coordinator_response.response_message.coordinator))
             } else {
-                None // TODO report FindCoordinatorRequest error
+                sender.send(Message::DisplayUIMessage(state::UIMessage::Error(format!("Could not retrieve coordinator for consumer group {}", cg))));
+                None
             }
         })
     });

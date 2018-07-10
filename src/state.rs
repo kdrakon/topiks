@@ -12,7 +12,7 @@ use std::fmt::Formatter;
 
 #[derive(Clone)]
 pub struct State {
-    pub message: Option<String>,
+    pub message: Option<UIMessage>,
     pub user_input: Option<String>,
     pub current_view: CurrentView,
     pub metadata: Option<MetadataResponse>,
@@ -22,6 +22,9 @@ pub struct State {
     pub topic_info_state: Option<TopicInfoState>,
     pub partition_info_state: Option<PartitionInfoState>,
 }
+
+#[derive(Clone)]
+pub enum UIMessage { Warn(String), Info(String), Error(String) }
 
 #[derive(Clone)]
 pub enum CurrentView {

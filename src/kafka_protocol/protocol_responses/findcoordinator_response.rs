@@ -9,7 +9,7 @@ pub struct FindCoordinatorResponse {
     pub coordinator: Coordinator,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Coordinator {
     pub node_id: i32,
     pub host: String,
