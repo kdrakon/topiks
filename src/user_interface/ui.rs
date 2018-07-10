@@ -7,6 +7,7 @@ use state::CurrentView;
 use state::PartitionInfoState;
 use state::State;
 use state::TopicInfoState;
+use state::UIMessage;
 use std::io::{stdin, stdout, Write};
 use std::io::Stdout;
 use std::thread;
@@ -32,14 +33,16 @@ pub fn update_with_state(state: &State) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
     write!(screen, "{}", termion::clear::All).unwrap();
 
+    show_message(screen, width, &state.message);
+
     if let Some(ref metadata) = state.metadata {
         match state.current_view {
             CurrentView::Topics => {
-                show_topics(screen, (width, height), metadata, state.selected_index, &state.marked_deleted);
+                show_topics(screen, (width, height - 2), (1, 2), metadata, state.selected_index, &state.marked_deleted);
             }
             CurrentView::Partitions => {
                 if let Some(partition_info_state) = state.partition_info_state.as_ref() {
-                    show_topic_partitions(screen, (width, height), partition_info_state);
+                    show_topic_partitions(screen, (width, height - 2), (1, 2), partition_info_state);
                 }
             }
             CurrentView::TopicInfo => {
@@ -55,10 +58,21 @@ pub fn update_with_state(state: &State) {
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
 
-fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>) {
+fn show_message(screen: &mut impl Write, width: u16, message: &Option<UIMessage>) {
+    write!(screen, "{}{}", cursor::Goto(1, 1), color::Fg(color::Black)).unwrap();
+    match message.as_ref() {
+        None => (),
+        Some(UIMessage::Error(error)) => write!(screen, "{}{}", color::Bg(color::LightRed), pad_right(&error, width)).unwrap(),
+        Some(UIMessage::Warn(warn)) => write!(screen, "{}{}", color::Bg(color::LightYellow), pad_right(&warn, width)).unwrap(),
+        Some(UIMessage::Info(info)) => write!(screen, "{}{}", color::Bg(color::LightBlue), pad_right(&info, width)).unwrap()
+    }
+    write!(screen, "{}", style::Reset).unwrap();
+}
+
+fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), (start_x, start_y): (u16, u16), metadata: &MetadataResponse, selected_index: usize, marked_deleted: &Vec<String>) {
     use user_interface::selectable_list::TopicListItem::*;
 
-    let paged = PagedVec::from(&metadata.topic_metadata, (height - 1) as usize);
+    let paged = PagedVec::from(&metadata.topic_metadata, height as usize);
 
     if let Some((page_index, page)) = paged.page(selected_index) {
         let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&TopicMetadata, usize)>>();
@@ -78,14 +92,14 @@ fn show_topics(screen: &mut impl Write, (width, height): (u16, u16), metadata: &
                 if page_index == index { Selected(Box::from(item)) } else { item }
             }).collect::<Vec<TopicListItem>>();
 
-        (SelectableList { list: list_items }).display(screen, (1, 1), width);
+        (SelectableList { list: list_items }).display(screen, (start_x, start_y), width);
     }
 }
 
-fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), partition_info_state: &PartitionInfoState) {
+fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), (start_x, start_y): (u16, u16), partition_info_state: &PartitionInfoState) {
     use user_interface::selectable_list::PartitionListItem::*;
 
-    let paged = PagedVec::from(&partition_info_state.partition_metadata, (height - 1) as usize);
+    let paged = PagedVec::from(&partition_info_state.partition_metadata, height as usize);
 
     if let Some((page_index, page)) = paged.page(partition_info_state.selected_index) {
         let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&PartitionMetadata, usize)>>();
@@ -98,7 +112,7 @@ fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), p
                 if page_index == index { Selected(Box::from(item)) } else { item }
             }).collect::<Vec<PartitionListItem>>();
 
-        (SelectableList { list: list_items }).display(screen, (1, 1), width);
+        (SelectableList { list: list_items }).display(screen, (start_x, start_y), width);
     }
 }
 
