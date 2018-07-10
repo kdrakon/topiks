@@ -70,7 +70,7 @@ pub fn start() -> Sender<Message> {
                 Ok(updated_state) => state.swap(&RefCell::new(updated_state)),
                 Err(StateFNError::Error(error)) => {
                     thread_sender.send(Message::DisplayUIMessage(UIMessage::Error(error)));
-                },
+                }
                 Err(StateFNError::Caused(error, cause)) => {
                     thread_sender.send(Message::DisplayUIMessage(UIMessage::Error(format!("{}: {}", error, cause))));
                 }
@@ -142,7 +142,20 @@ fn to_event(message: Message) -> Event {
                             }).unwrap_or(0);
                         Ok((CurrentView::Partitions, selected_index))
                     }
-                    CurrentView::TopicInfo => Ok((CurrentView::TopicInfo, 0)) // not implemented
+                    CurrentView::TopicInfo => {
+                        let selected_index =
+                            state.topic_info_state.as_ref().map(|topic_info_state| {
+                                let selected_index = topic_info_state.selected_index;
+                                match direction {
+                                    Up => if selected_index > 0 { selected_index - 1 } else { selected_index },
+                                    Down => if selected_index < (topic_info_state.config_resource.config_entries.len() - 1) { selected_index + 1 } else { selected_index },
+                                    Top => 0,
+                                    Bottom => topic_info_state.config_resource.config_entries.len() - 1,
+                                    SearchNext => selected_index // not implemented
+                                }
+                            }).unwrap_or(0);
+                        Ok((CurrentView::TopicInfo, selected_index))
+                    }
                 }
             }))
         }
@@ -207,7 +220,7 @@ fn to_event(message: Message) -> Event {
 
                                     match resource.first() {
                                         None => Err(StateFNError::caused("", TcpRequestError::from("API response missing topic resource info"))),
-                                        Some(resource) => Ok(Some(TopicInfoState { topic_metadata, config_resource: resource.clone() }))
+                                        Some(resource) => Ok(Some(TopicInfoState { topic_metadata, config_resource: resource.clone(), selected_index: 0 }))
                                     }
                                 }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
                             })
@@ -333,7 +346,10 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             Ok(current_state.clone())
         }
         ShowUIMessage(message) => {
-            current_state.message = Some(message);
+            match message {
+                UIMessage::None => current_state.message = None,
+                _ => current_state.message = Some(message)
+            }
             Ok(current_state.clone())
         }
         ListTopics(get_metadata) => {
@@ -358,7 +374,13 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
                     });
                     Ok(current_state.clone())
                 }
-                Ok((CurrentView::TopicInfo, _)) => Ok(current_state.clone())
+                Ok((CurrentView::TopicInfo, selected_index)) => {
+                    current_state.topic_info_state = current_state.topic_info_state.as_mut().map(|state| {
+                        state.selected_index = selected_index;
+                        state.clone()
+                    });
+                    Ok(current_state.clone())
+                }
             }
         }
         TopicQuerySet(query) => {

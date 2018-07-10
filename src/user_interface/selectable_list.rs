@@ -71,3 +71,22 @@ impl SelectableListItem for PartitionListItem {
         }
     }
 }
+
+pub enum TopicConfigurationItem {
+    Config { name: String, value: Option<String> },
+    Selected(Box<TopicConfigurationItem>),
+    ReadOnlyConfig(Box<TopicConfigurationItem>),
+    SensitiveConfig(Box<TopicConfigurationItem>),
+}
+
+impl SelectableListItem for TopicConfigurationItem {
+    fn display(&self) -> String {
+        use self::TopicConfigurationItem::*;
+        match &self {
+            Config { name, value } => format!("{}: {}", name, value.as_ref().unwrap_or(&String::from(""))),
+            Selected(config) => format!("{}{}", color::Bg(color::LightBlack), config.display()),
+            ReadOnlyConfig(config) => format!("{}{}", color::Fg(color::Yellow), config.display()),
+            SensitiveConfig(config) => format!("{}{}", color::Fg(color::LightRed), config.display()),
+        }
+    }
+}

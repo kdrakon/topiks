@@ -27,6 +27,7 @@ use user_interface::selectable_list::TopicListItem;
 use util::paged_vec::PagedVec;
 use util::utils;
 use util::utils::pad_right;
+use user_interface::selectable_list::TopicConfigurationItem;
 
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -47,7 +48,7 @@ pub fn update_with_state(state: &State) {
             }
             CurrentView::TopicInfo => {
                 if let Some(ref topic_info) = state.topic_info_state {
-                    show_topic_info(screen, (width, height), topic_info);
+                    show_topic_info(screen, (width, height - 4), (1, 4), topic_info);
                 }
             }
         }
@@ -62,6 +63,7 @@ fn show_message(screen: &mut impl Write, width: u16, message: &Option<UIMessage>
     write!(screen, "{}{}", cursor::Goto(1, 1), color::Fg(color::Black)).unwrap();
     match message.as_ref() {
         None => (),
+        Some(&UIMessage::None) => (),
         Some(UIMessage::Error(error)) => write!(screen, "{}{}", color::Bg(color::LightRed), pad_right(&error, width)).unwrap(),
         Some(UIMessage::Warn(warn)) => write!(screen, "{}{}", color::Bg(color::LightYellow), pad_right(&warn, width)).unwrap(),
         Some(UIMessage::Info(info)) => write!(screen, "{}{}", color::Bg(color::LightBlue), pad_right(&info, width)).unwrap()
@@ -116,7 +118,9 @@ fn show_topic_partitions(screen: &mut impl Write, (width, height): (u16, u16), (
     }
 }
 
-fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), topic_info: &TopicInfoState) {
+fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_x, start_y): (u16, u16), topic_info: &TopicInfoState) {
+    use user_interface::selectable_list::TopicConfigurationItem::*;
+
     let ref topic_metadata = topic_info.topic_metadata;
     let ref config_resource = topic_info.config_resource;
 
@@ -126,11 +130,22 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), topic_i
 
     // configs
     write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset).unwrap();
-    let longest_config_name_len = config_resource.config_entries.iter().map(|config_entry| config_entry.config_name.len()).max().unwrap();
-    config_resource.config_entries.iter().cloned().for_each(|config_entry| {
-        let config_name = pad_right(&config_entry.config_name, (longest_config_name_len as u16) + 1);
-        write!(screen, "{}", pad_right(&format!("{}: {}", config_name, config_entry.config_value.unwrap_or(String::from("n/a"))), width)).unwrap();
-    });
+    let longest_config_name_len = config_resource.config_entries.iter().map(|config_entry| config_entry.config_name.len()).max().unwrap() as u16;
+    let paged = PagedVec::from(&config_resource.config_entries, height as usize);
+
+    if let Some((page_index, page)) = paged.page(topic_info.selected_index) {
+        let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&ConfigEntry, usize)>>();
+        let list_items =
+            indexed.iter().map(|&(config_entry, index)| {
+                let item = Config { name: pad_right(&config_entry.config_name, longest_config_name_len), value: config_entry.config_value.clone() };
+                let item = if page_index == index { Selected(Box::from(item)) } else { item };
+                let item = if config_entry.read_only { ReadOnlyConfig(Box::from(item)) } else { item };
+                let item = if config_entry.is_sensitive { SensitiveConfig(Box::from(item)) } else { item };
+                item
+            }).collect::<Vec<TopicConfigurationItem>>();
+
+        (SelectableList { list: list_items }).display(screen, (start_x, start_y), width);
+    }
 }
 
 fn show_user_input(screen: &mut impl Write, (width, height): (u16, u16), user_input: Option<&String>) {

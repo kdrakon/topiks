@@ -24,7 +24,7 @@ pub struct State {
 }
 
 #[derive(Clone)]
-pub enum UIMessage { Warn(String), Info(String), Error(String) }
+pub enum UIMessage { None, Warn(String), Info(String), Error(String) }
 
 #[derive(Clone)]
 pub enum CurrentView {
@@ -99,6 +99,7 @@ impl State {
 pub struct TopicInfoState {
     pub topic_metadata: TopicMetadata,
     pub config_resource: Resource,
+    pub selected_index: usize,
 }
 
 #[derive(Clone)]
