@@ -48,7 +48,7 @@ pub fn update_with_state(state: &State) {
             }
             CurrentView::TopicInfo => {
                 if let Some(ref topic_info) = state.topic_info_state {
-                    show_topic_info(screen, (width, height - 4), (1, 4), topic_info);
+                    show_topic_info(screen, (width, height - 4), (1, 2), topic_info);
                 }
             }
         }
@@ -125,7 +125,7 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
     let ref config_resource = topic_info.config_resource;
 
     // header
-    write!(screen, "{}{}{}", style::Bold, pad_right(&format!("Topic: {}", &topic_metadata.topic), width), style::Reset).unwrap();
+    write!(screen, "{}{}{}{}", cursor::Goto(start_x,start_y), style::Bold, pad_right(&format!("Topic: {}", &topic_metadata.topic), width), style::Reset).unwrap();
     write!(screen, "{}", pad_right(&format!("Internal: {}", &(utils::bool_yes_no(topic_metadata.is_internal))), width)).unwrap();
 
     // configs
@@ -144,7 +144,7 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
                 item
             }).collect::<Vec<TopicConfigurationItem>>();
 
-        (SelectableList { list: list_items }).display(screen, (start_x, start_y), width);
+        (SelectableList { list: list_items }).display(screen, (start_x, start_y + 3), width);
     }
 }
 
