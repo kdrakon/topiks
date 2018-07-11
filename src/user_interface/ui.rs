@@ -7,7 +7,7 @@ use state::CurrentView;
 use state::PartitionInfoState;
 use state::State;
 use state::TopicInfoState;
-use state::UIMessage;
+use state::DialogMessage;
 use std::io::{stdin, stdout, Write};
 use std::io::Stdout;
 use std::thread;
@@ -34,7 +34,7 @@ pub fn update_with_state(state: &State) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
     write!(screen, "{}", termion::clear::All).unwrap();
 
-    show_message(screen, width, &state.message);
+    show_dialog_message(screen, width, &state.dialog_message);
 
     if let Some(ref metadata) = state.metadata {
         match state.current_view {
@@ -59,14 +59,14 @@ pub fn update_with_state(state: &State) {
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
 
-fn show_message(screen: &mut impl Write, width: u16, message: &Option<UIMessage>) {
+fn show_dialog_message(screen: &mut impl Write, width: u16, message: &Option<DialogMessage>) {
     write!(screen, "{}{}", cursor::Goto(1, 1), color::Fg(color::Black)).unwrap();
     match message.as_ref() {
         None => (),
-        Some(&UIMessage::None) => (),
-        Some(UIMessage::Error(error)) => write!(screen, "{}{}", color::Bg(color::LightRed), pad_right(&error, width)).unwrap(),
-        Some(UIMessage::Warn(warn)) => write!(screen, "{}{}", color::Bg(color::LightYellow), pad_right(&warn, width)).unwrap(),
-        Some(UIMessage::Info(info)) => write!(screen, "{}{}", color::Bg(color::LightBlue), pad_right(&info, width)).unwrap()
+        Some(&DialogMessage::None) => (),
+        Some(DialogMessage::Error(error)) => write!(screen, "{}{}", color::Bg(color::LightRed), pad_right(&error, width)).unwrap(),
+        Some(DialogMessage::Warn(warn)) => write!(screen, "{}{}", color::Bg(color::LightYellow), pad_right(&warn, width)).unwrap(),
+        Some(DialogMessage::Info(info)) => write!(screen, "{}{}", color::Bg(color::LightBlue), pad_right(&info, width)).unwrap()
     }
     write!(screen, "{}", style::Reset).unwrap();
 }

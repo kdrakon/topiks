@@ -22,7 +22,7 @@ use kafka_protocol::protocol_responses::findcoordinator_response::FindCoordinato
 use kafka_protocol::protocol_responses::metadata_response::*;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_serializable::*;
-use state::UIMessage;
+use state::DialogMessage;
 use std::env;
 use std::io;
 use std::io::{stdin, stdout, Write};
@@ -88,7 +88,7 @@ fn main() {
             if find_coordinator_response.response_message.error_code == 0 {
                 Some(ConsumerGroup(String::from(cg), find_coordinator_response.response_message.coordinator))
             } else {
-                sender.send(Message::DisplayUIMessage(UIMessage::Error(format!("Could not determine coordinator for consumer group {}", cg))));
+                sender.send(Message::DisplayUIMessage(DialogMessage::Error(format!("Could not determine coordinator for consumer group {}", cg))));
                 None
             }
         })
@@ -102,12 +102,12 @@ fn main() {
                 break;
             }
             Key::Char('r') => {
-                sender.send(Message::DisplayUIMessage(UIMessage::None));
+                sender.send(Message::DisplayUIMessage(DialogMessage::None));
                 sender.send(Message::GetTopics(bootstrap_server()));
             }
             Key::Char('d') => {
                 if app_config.topic_deletion {
-                    sender.send(Message::DisplayUIMessage(UIMessage::Warn(format!("Deleting topic"))));
+                    sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!("Deleting topic"))));
                     if app_config.topic_deletion_confirmation {
                         let (width, height) = terminal_size().unwrap();
                         if let Some(ref confirm) = user_input::read("[Yes]?: ", (1, height), sender.clone()) {
@@ -120,7 +120,7 @@ fn main() {
                     } else {
                         sender.send(Message::DeleteTopic(bootstrap_server()));
                     }
-                    sender.send(Message::DisplayUIMessage(UIMessage::None));
+                    sender.send(Message::DisplayUIMessage(DialogMessage::None));
                 }
             }
             Key::Up => {
@@ -142,7 +142,7 @@ fn main() {
                 sender.send(Message::TogglePartitionInfo(bootstrap_server(), consumer_group.clone()));
             }
             Key::Char('/') => {
-                sender.send(Message::DisplayUIMessage(UIMessage::Info(format!("Search"))));
+                sender.send(Message::DisplayUIMessage(DialogMessage::Info(format!("Search"))));
                 let (width, height) = terminal_size().unwrap();
                 let query = match user_input::read("/", (1, height), sender.clone()) {
                     Some(query) => Message::SetTopicQuery(Query(query)),
@@ -150,7 +150,7 @@ fn main() {
                 };
                 sender.send(query);
                 sender.send(Message::Select(SearchNext));
-                sender.send(Message::DisplayUIMessage(UIMessage::None));
+                sender.send(Message::DisplayUIMessage(DialogMessage::None));
             }
             Key::Char('n') => { // TODO support Shift+n for reverse
                 sender.send(Message::Select(SearchNext));

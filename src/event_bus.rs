@@ -36,7 +36,7 @@ pub enum TopicQuery { NoQuery, Query(String) }
 
 pub enum Message {
     Noop,
-    DisplayUIMessage(UIMessage),
+    DisplayUIMessage(DialogMessage),
     UserInput(String),
     GetTopics(BootstrapServer),
     Select(MoveSelection),
@@ -48,7 +48,7 @@ pub enum Message {
 
 enum Event {
     StateIdentity,
-    ShowUIMessage(UIMessage),
+    ShowUIMessage(DialogMessage),
     UserInputUpdated(String),
     ListTopics(StateFn<metadata_response::MetadataResponse>),
     SelectionUpdated(StateFn<(CurrentView, usize)>),
@@ -69,10 +69,10 @@ pub fn start() -> Sender<Message> {
             match update_state(to_event(message), state.borrow_mut()) {
                 Ok(updated_state) => state.swap(&RefCell::new(updated_state)),
                 Err(StateFNError::Error(error)) => {
-                    thread_sender.send(Message::DisplayUIMessage(UIMessage::Error(error)));
+                    thread_sender.send(Message::DisplayUIMessage(DialogMessage::Error(error)));
                 }
                 Err(StateFNError::Caused(error, cause)) => {
-                    thread_sender.send(Message::DisplayUIMessage(UIMessage::Error(format!("{}: {}", error, cause))));
+                    thread_sender.send(Message::DisplayUIMessage(DialogMessage::Error(format!("{}: {}", error, cause))));
                 }
             }
             ui::update_with_state(&state.borrow());
@@ -337,8 +337,8 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
         }
         ShowUIMessage(message) => {
             match message {
-                UIMessage::None => current_state.message = None,
-                _ => current_state.message = Some(message)
+                DialogMessage::None => current_state.dialog_message = None,
+                _ => current_state.dialog_message = Some(message)
             }
             Ok(current_state.clone())
         }
