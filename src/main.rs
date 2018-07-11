@@ -48,6 +48,7 @@ struct AppConfig<'a> {
     request_timeout_ms: i32,
     topic_deletion: bool,
     topic_deletion_confirmation: bool,
+    modification_enabled: bool,
 }
 
 fn main() {
@@ -59,6 +60,7 @@ fn main() {
         .arg(Arg::with_name("consumer-group").long("consumer-group").short("c").takes_value(true).help("Consumer group for fetching offsets"))
         .arg(Arg::with_name("delete").short("D").help("Enable topic deletion"))
         .arg(Arg::with_name("no-delete-confirmation").long("no-delete-confirmation").help("Disable delete confirmation <Danger!>"))
+        .arg(Arg::with_name("modify").short("M").help("Enable modification of topic configurations and other resources"))
         .get_matches();
 
     let app_config = AppConfig {
@@ -67,6 +69,7 @@ fn main() {
         request_timeout_ms: 30_000,
         topic_deletion: matches.is_present("delete"),
         topic_deletion_confirmation: !matches.is_present("no-delete-confirmation"),
+        modification_enabled: matches.is_present("modify"),
     };
 
     let sender = event_bus::start();
@@ -103,7 +106,7 @@ fn main() {
                     Ok(_) => break,
                     Err(_) => {
                         eprintln!("Failed to signal event bus/user interface thread. Exiting now");
-                        break
+                        break;
                     }
                 }
             }
@@ -160,6 +163,15 @@ fn main() {
             }
             Key::Char('n') => { // TODO support Shift+n for reverse
                 sender.send(Message::Select(SearchNext));
+            }
+            Key::Char('\n') => {
+                if app_config.modification_enabled {
+                    sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!(""))));
+                    let (width, height) = terminal_size().unwrap();
+                    if let Some(modify_value) = user_input::read(": ", (1, height), sender.clone()) {
+                        sender.send(Message::ModifyValue(modify_value));
+                    }
+                }
             }
             _ => {}
         }
