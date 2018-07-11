@@ -35,6 +35,7 @@ pub enum MoveSelection { Up, Down, Top, Bottom, SearchNext }
 pub enum TopicQuery { NoQuery, Query(String) }
 
 pub enum Message {
+    Quit,
     Noop,
     DisplayUIMessage(DialogMessage),
     UserInput(String),
@@ -47,6 +48,7 @@ pub enum Message {
 }
 
 enum Event {
+    Exiting,
     StateIdentity,
     ShowUIMessage(DialogMessage),
     UserInputUpdated(String),
@@ -66,16 +68,21 @@ pub fn start() -> Sender<Message> {
         let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
 
         for message in receiver {
-            match update_state(to_event(message), state.borrow_mut()) {
-                Ok(updated_state) => state.swap(&RefCell::new(updated_state)),
-                Err(StateFNError::Error(error)) => {
-                    thread_sender.send(Message::DisplayUIMessage(DialogMessage::Error(error)));
-                }
-                Err(StateFNError::Caused(error, cause)) => {
-                    thread_sender.send(Message::DisplayUIMessage(DialogMessage::Error(format!("{}: {}", error, cause))));
+            match to_event(message) {
+                Exiting => break,
+                non_exit_event => {
+                    match update_state(non_exit_event, state.borrow_mut()) {
+                        Ok(updated_state) => state.swap(&RefCell::new(updated_state)),
+                        Err(StateFNError::Error(error)) => {
+                            thread_sender.send(Message::DisplayUIMessage(DialogMessage::Error(error)));
+                        }
+                        Err(StateFNError::Caused(error, cause)) => {
+                            thread_sender.send(Message::DisplayUIMessage(DialogMessage::Error(format!("{}: {}", error, cause))));
+                        }
+                    }
+                    ui::update_with_state(&state.borrow());
                 }
             }
-            ui::update_with_state(&state.borrow());
         }
     });
 
@@ -84,6 +91,7 @@ pub fn start() -> Sender<Message> {
 
 fn to_event(message: Message) -> Event {
     match message {
+        Quit => Exiting,
         Noop => StateIdentity,
         DisplayUIMessage(message) => ShowUIMessage(message),
         UserInput(input) => UserInputUpdated(input),
@@ -330,6 +338,7 @@ fn to_event(message: Message) -> Event {
 
 fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State, StateFNError> {
     match event {
+        Exiting => Err(StateFNError::Error(format!("Invalid State, can not update state from Exiting event"))),
         StateIdentity => Ok(current_state.clone()),
         UserInputUpdated(input) => {
             current_state.user_input = if !input.is_empty() { Some(input) } else { None };
