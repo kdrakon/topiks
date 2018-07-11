@@ -99,7 +99,13 @@ fn main() {
     for key in stdin.keys() {
         match key.unwrap() {
             Key::Char('q') => {
-                break;
+                match sender.send(Message::Quit) {
+                    Ok(_) => break,
+                    Err(_) => {
+                        eprintln!("Failed to signal event bus/user interface thread. Exiting now");
+                        break
+                    }
+                }
             }
             Key::Char('r') => {
                 sender.send(Message::DisplayUIMessage(DialogMessage::None));
