@@ -110,7 +110,7 @@ fn main() {
                     sender.send(Message::DisplayUIMessage(UIMessage::Warn(format!("Deleting topic"))));
                     if app_config.topic_deletion_confirmation {
                         let (width, height) = terminal_size().unwrap();
-                        if let Some(ref confirm) = user_input::read("delete?: ", (1, height), sender.clone()) {
+                        if let Some(ref confirm) = user_input::read("[Yes]?: ", (1, height), sender.clone()) {
                             if confirm.eq("Yes") {
                                 sender.send(Message::DeleteTopic(bootstrap_server()));
                             } else {
