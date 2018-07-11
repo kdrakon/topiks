@@ -34,6 +34,11 @@ pub enum MoveSelection { Up, Down, Top, Bottom, SearchNext }
 
 pub enum TopicQuery { NoQuery, Query(String) }
 
+pub enum Modification {
+    TopicConfigAdded(String, Option<String>),
+    TopicConfigChanged(String, Option<String>, Option<String>),
+}
+
 pub enum Message {
     Quit,
     Noop,
@@ -45,6 +50,7 @@ pub enum Message {
     DeleteTopic(BootstrapServer),
     ToggleTopicInfo(BootstrapServer),
     TogglePartitionInfo(BootstrapServer, Option<ConsumerGroup>),
+    ModifyValue(String),
 }
 
 enum Event {
@@ -58,6 +64,7 @@ enum Event {
     TopicDeleted(StateFn<String>),
     InfoToggled(StateFn<TopicInfoState>),
     PartitionsToggled(StateFn<PartitionInfoState>),
+    ValueModified(StateFn<Modification>),
 }
 
 pub fn start() -> Sender<Message> {
@@ -333,12 +340,30 @@ fn to_event(message: Message) -> Event {
                     }).unwrap_or(Err(StateFNError::error("Could not select or find partition metadata")))
             }))
         }
+
+        ModifyValue(new_value) => {
+            ValueModified(Box::from(move |state: &State| {
+                match state.current_view {
+                    CurrentView::Topics => Err(StateFNError::error("Modifications not supported for topics")),
+                    CurrentView::Partitions => Err(StateFNError::error("Modifications not supported for partitions")),
+                    CurrentView::TopicInfo => {
+
+                        state.topic_info_state.as_ref().map(|topic_metadata|{
+
+                        });
+
+                        Err(StateFNError::error("not implemented"))
+
+                    }
+                }
+            }))
+        }
     }
 }
 
 fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State, StateFNError> {
     match event {
-        Exiting => Err(StateFNError::Error(format!("Invalid State, can not update state from Exiting event"))),
+        Exiting => Err(StateFNError::error("Invalid State, can not update state from Exiting event")),
         StateIdentity => Ok(current_state.clone()),
         UserInputUpdated(input) => {
             current_state.user_input = if !input.is_empty() { Some(input) } else { None };
@@ -425,6 +450,18 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
                 }
                 _ => Ok(current_state.clone())
             }
+        }
+        ValueModified(modify_fn) => {
+            modify_fn(&current_state).map(|modification: Modification| {
+                match modification {
+                    Modification::TopicConfigAdded(c, v) => {
+                        current_state.clone()
+                    }
+                    Modification::TopicConfigChanged(c, p, n) => {
+                        current_state.clone()
+                    }
+                }
+            })
         }
     }
 }
