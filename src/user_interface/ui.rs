@@ -4,10 +4,10 @@ use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
 use state::CurrentView;
+use state::DialogMessage;
 use state::PartitionInfoState;
 use state::State;
 use state::TopicInfoState;
-use state::DialogMessage;
 use std::io::{stdin, stdout, Write};
 use std::io::Stdout;
 use std::thread;
@@ -23,11 +23,12 @@ use termion::style;
 use termion::terminal_size;
 use user_interface::selectable_list::PartitionListItem;
 use user_interface::selectable_list::SelectableList;
+use user_interface::selectable_list::TopicConfigurationItem;
 use user_interface::selectable_list::TopicListItem;
 use util::paged_vec::PagedVec;
 use util::utils;
 use util::utils::pad_right;
-use user_interface::selectable_list::TopicConfigurationItem;
+use state::NewConfigResourcePlaceholder;
 
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -125,17 +126,17 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
     let ref config_resource = topic_info.config_resource;
 
     // header
-    write!(screen, "{}{}{}{}", cursor::Goto(start_x,start_y), style::Bold, pad_right(&format!("Topic: {}", &topic_metadata.topic), width), style::Reset).unwrap();
+    write!(screen, "{}{}{}{}", cursor::Goto(start_x, start_y), style::Bold, pad_right(&format!("Topic: {}", &topic_metadata.topic), width), style::Reset).unwrap();
     write!(screen, "{}", pad_right(&format!("Internal: {}", &(utils::bool_yes_no(topic_metadata.is_internal))), width)).unwrap();
 
     // configs
     write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset).unwrap();
     let longest_config_name_len = config_resource.config_entries.iter().map(|config_entry| config_entry.config_name.len()).max().unwrap() as u16;
-    let paged = PagedVec::from(&config_resource.config_entries, height as usize);
+    let paged = PagedVec::from(&config_resource.config_entries, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(topic_info.selected_index) {
-        let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&ConfigEntry, usize)>>();
-        let list_items =
+        let indexed = page.iter().zip((1..page.len() + 1)).collect::<Vec<(&&ConfigEntry, usize)>>();
+        let mut config_list_items =
             indexed.iter().map(|&(config_entry, index)| {
                 let item = Config { name: pad_right(&config_entry.config_name, longest_config_name_len), value: config_entry.config_value.clone() };
                 let item = if page_index == index { Selected(Box::from(item)) } else { item };
@@ -143,6 +144,15 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
                 let item = if config_entry.is_sensitive { SensitiveConfig(Box::from(item)) } else { item };
                 item
             }).collect::<Vec<TopicConfigurationItem>>();
+
+        let new_config = match topic_info.new_config_resource {
+            None => TopicConfigurationItem::NewConfig { name: format!("[Add new config]"), value: None },
+            Some(NewConfigResourcePlaceholder(ref new_name, None)) => TopicConfigurationItem::NewConfig { name: new_name.clone(), value: None },
+            Some(NewConfigResourcePlaceholder(ref new_name, Some(ref new_value))) => TopicConfigurationItem::NewConfig { name: new_name.clone(), value: Some(new_value.clone()) },
+        };
+        let new_config = if page_index == 0 { Selected(Box::from(new_config)) } else { new_config };
+        let mut list_items = vec![new_config];
+        list_items.append(&mut config_list_items);
 
         (SelectableList { list: list_items }).display(screen, (start_x, start_y + 3), width);
     }

@@ -99,8 +99,12 @@ impl State {
 pub struct TopicInfoState {
     pub topic_metadata: TopicMetadata,
     pub config_resource: Resource,
+    pub new_config_resource: Option<NewConfigResourcePlaceholder>,
     pub selected_index: usize,
 }
+
+#[derive(Clone)]
+pub struct NewConfigResourcePlaceholder(pub String, pub Option<String>);
 
 #[derive(Clone)]
 pub struct PartitionInfoState {

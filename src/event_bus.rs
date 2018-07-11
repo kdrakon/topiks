@@ -161,11 +161,12 @@ fn to_event(message: Message) -> Event {
                         let selected_index =
                             state.topic_info_state.as_ref().map(|topic_info_state| {
                                 let selected_index = topic_info_state.selected_index;
+                                let entries_len = topic_info_state.config_resource.config_entries.len(); // doesn't '- 1' to include new config entry
                                 match direction {
                                     Up => if selected_index > 0 { selected_index - 1 } else { selected_index },
-                                    Down => if selected_index < (topic_info_state.config_resource.config_entries.len() - 1) { selected_index + 1 } else { selected_index },
+                                    Down => if selected_index < entries_len { selected_index + 1 } else { selected_index },
                                     Top => 0,
-                                    Bottom => topic_info_state.config_resource.config_entries.len() - 1,
+                                    Bottom => entries_len,
                                     SearchNext => selected_index // not implemented
                                 }
                             }).unwrap_or(0);
@@ -232,7 +233,7 @@ fn to_event(message: Message) -> Event {
 
                             match resource.first() {
                                 None => Err(StateFNError::caused("", TcpRequestError::from("API response missing topic resource info"))),
-                                Some(resource) => Ok(TopicInfoState { topic_metadata, config_resource: resource.clone(), selected_index: 0 })
+                                Some(resource) => Ok(TopicInfoState { topic_metadata, config_resource: resource.clone(), new_config_resource: None, selected_index: 0 })
                             }
                         }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
                     })
