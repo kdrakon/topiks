@@ -4,3 +4,4 @@ pub mod describeconfigs_response;
 pub mod offsetfetch_response;
 pub mod listoffsets_response;
 pub mod findcoordinator_response;
+pub mod alterconfigs_response;
