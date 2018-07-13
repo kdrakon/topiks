@@ -35,8 +35,8 @@ pub enum MoveSelection { Up, Down, Top, Bottom, SearchNext }
 pub enum TopicQuery { NoQuery, Query(String) }
 
 pub enum Modification {
-    TopicConfigAdded(String, Option<String>),
-    TopicConfigChanged(String, Option<String>, Option<String>),
+    NewTopicConfig(Option<NewConfigResourcePlaceholder>),
+    ExistingTopicConfig(String)
 }
 
 pub enum Message {
@@ -50,7 +50,7 @@ pub enum Message {
     DeleteTopic(BootstrapServer),
     ToggleTopicInfo(BootstrapServer),
     TogglePartitionInfo(BootstrapServer, Option<ConsumerGroup>),
-    ModifyValue(String),
+    ModifyValue(Option<String>),
 }
 
 enum Event {
@@ -348,13 +348,29 @@ fn to_event(message: Message) -> Event {
                     CurrentView::Topics => Err(StateFNError::error("Modifications not supported for topics")),
                     CurrentView::Partitions => Err(StateFNError::error("Modifications not supported for partitions")),
                     CurrentView::TopicInfo => {
-
-                        state.topic_info_state.as_ref().map(|topic_metadata|{
+                        state.topic_info_state.as_ref().map(|topic_metadata| {
+                            match topic_metadata.selected_index {
+                                0 => {
+                                    match topic_metadata.new_config_resource {
+                                        None => {
+                                            // set name of config
+                                        }
+                                        Some(NewConfigResourcePlaceholder(ref name, None)) => {
+                                            // send AlterConfigs request
+                                        }
+                                        Some(NewConfigResourcePlaceholder(_, Some(_))) => {
+                                            // invalid state
+                                        }
+                                    }
+                                }
+                                non_zero => {
+                                    // modify existing config
+                                }
+                            }
 
                         });
 
                         Err(StateFNError::error("not implemented"))
-
                     }
                 }
             }))
@@ -455,10 +471,10 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
         ValueModified(modify_fn) => {
             modify_fn(&current_state).map(|modification: Modification| {
                 match modification {
-                    Modification::TopicConfigAdded(c, v) => {
+                    Modification::NewTopicConfig(placeholder) => {
                         current_state.clone()
                     }
-                    Modification::TopicConfigChanged(c, p, n) => {
+                    Modification::ExistingTopicConfig(config_name) => {
                         current_state.clone()
                     }
                 }

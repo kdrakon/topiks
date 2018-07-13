@@ -168,9 +168,8 @@ fn main() {
                 if app_config.modification_enabled {
                     sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!(""))));
                     let (width, height) = terminal_size().unwrap();
-                    if let Some(modify_value) = user_input::read(": ", (1, height), sender.clone()) {
-                        sender.send(Message::ModifyValue(modify_value));
-                    }
+                    let modify_value = user_input::read(": ", (1, height), sender.clone());
+                    sender.send(Message::ModifyValue(modify_value));
                 }
             }
             _ => {}
