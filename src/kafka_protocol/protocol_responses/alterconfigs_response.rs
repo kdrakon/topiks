@@ -2,11 +2,13 @@ use kafka_protocol::protocol_serializable::*;
 
 /// Version 0
 ///
+#[derive(Debug)]
 pub struct AlterConfigsResponse {
     pub throttle_time_ms: i32,
     pub resources: Vec<Resource>,
 }
 
+#[derive(Debug)]
 pub struct Resource {
     pub error_code: i16,
     pub error_message: Option<String>,

@@ -104,7 +104,7 @@ pub struct TopicInfoState {
 }
 
 #[derive(Clone)]
-pub struct NewConfigResourcePlaceholder(pub String, pub Option<String>);
+pub struct NewConfigResourcePlaceholder(pub String);
 
 #[derive(Clone)]
 pub struct PartitionInfoState {

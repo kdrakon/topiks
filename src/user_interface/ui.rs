@@ -131,7 +131,7 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
 
     // configs
     write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset).unwrap();
-    let longest_config_name_len = config_resource.config_entries.iter().map(|config_entry| config_entry.config_name.len()).max().unwrap() as u16;
+    let longest_config_name_len = config_resource.config_entries.iter().map(|config_entry| config_entry.config_name.len()).max().unwrap_or(0) as u16;
     let paged = PagedVec::from(&config_resource.config_entries, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(topic_info.selected_index) {
@@ -146,9 +146,8 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
             }).collect::<Vec<TopicConfigurationItem>>();
 
         let new_config = match topic_info.new_config_resource {
-            None => TopicConfigurationItem::NewConfig { name: format!("[Add new config]"), value: None },
-            Some(NewConfigResourcePlaceholder(ref new_name, None)) => TopicConfigurationItem::NewConfig { name: new_name.clone(), value: None },
-            Some(NewConfigResourcePlaceholder(ref new_name, Some(ref new_value))) => TopicConfigurationItem::NewConfig { name: new_name.clone(), value: Some(new_value.clone()) },
+            None => TopicConfigurationItem::NewConfig { name: pad_right(&format!("[Add new config]"), longest_config_name_len), value: None },
+            Some(NewConfigResourcePlaceholder(ref new_name)) => TopicConfigurationItem::NewConfig { name: pad_right(&new_name, longest_config_name_len), value: Some(format!("[Set Value]")) }
         };
         let new_config = if page_index == 0 { Selected(Box::from(new_config)) } else { new_config };
         let mut list_items = vec![new_config];
