@@ -169,7 +169,7 @@ fn main() {
                     sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!(""))));
                     let (width, height) = terminal_size().unwrap();
                     let modify_value = user_input::read(": ", (1, height), sender.clone());
-                    sender.send(Message::ModifyValue(modify_value));
+                    sender.send(Message::ModifyValue(bootstrap_server(), modify_value));
                 }
             }
             _ => {}

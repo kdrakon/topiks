@@ -5,6 +5,7 @@ use event_bus::MoveSelection::*;
 use event_bus::TopicQuery::*;
 use kafka_protocol::protocol_request::Request;
 use kafka_protocol::protocol_requests::*;
+use kafka_protocol::protocol_requests;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::*;
 use state::*;
@@ -34,11 +35,6 @@ pub enum MoveSelection { Up, Down, Top, Bottom, SearchNext }
 
 pub enum TopicQuery { NoQuery, Query(String) }
 
-pub enum Modification {
-    NewTopicConfig(Option<NewConfigResourcePlaceholder>),
-    ExistingTopicConfig(String)
-}
-
 pub enum Message {
     Quit,
     Noop,
@@ -50,7 +46,7 @@ pub enum Message {
     DeleteTopic(BootstrapServer),
     ToggleTopicInfo(BootstrapServer),
     TogglePartitionInfo(BootstrapServer, Option<ConsumerGroup>),
-    ModifyValue(Option<String>),
+    ModifyValue(BootstrapServer, Option<String>),
 }
 
 enum Event {
@@ -64,7 +60,7 @@ enum Event {
     TopicDeleted(StateFn<String>),
     InfoToggled(StateFn<TopicInfoState>),
     PartitionsToggled(StateFn<PartitionInfoState>),
-    ValueModified(StateFn<Modification>),
+    ValueModified(StateFn<TopicInfoState>),
 }
 
 pub fn start() -> Sender<Message> {
@@ -213,7 +209,7 @@ fn to_event(message: Message) -> Event {
         ToggleTopicInfo(BootstrapServer(bootstrap)) => {
             InfoToggled(Box::from(move |state: &State| {
                 let resource = describeconfigs_request::Resource {
-                    resource_type: describeconfigs_request::ResourceTypes::Topic as i8,
+                    resource_type: protocol_requests::ResourceTypes::Topic as i8,
                     resource_name: state.selected_topic_name().expect("failure to get topic name"),
                     config_names: None,
                 };
@@ -342,35 +338,85 @@ fn to_event(message: Message) -> Event {
             }))
         }
 
-        ModifyValue(new_value) => {
+        ModifyValue(BootstrapServer(bootstrap), new_value) => {
             ValueModified(Box::from(move |state: &State| {
                 match state.current_view {
                     CurrentView::Topics => Err(StateFNError::error("Modifications not supported for topics")),
                     CurrentView::Partitions => Err(StateFNError::error("Modifications not supported for partitions")),
                     CurrentView::TopicInfo => {
-                        state.topic_info_state.as_ref().map(|topic_metadata| {
-                            match topic_metadata.selected_index {
+                        state.topic_info_state.as_ref().map(|topic_info_state| {
+                            let alter_config = |config_name: String, config_value: Option<String>| {
+                                let resource = alterconfigs_request::Resource {
+                                    resource_type: protocol_requests::ResourceTypes::Topic as i8,
+                                    resource_name: topic_info_state.topic_metadata.topic.clone(),
+                                    config_entries: vec![alterconfigs_request::ConfigEntry { config_name: config_name.clone(), config_value: config_value.clone() }],
+                                };
+                                let alterconfigs_response: Result<Response<alterconfigs_response::AlterConfigsResponse>, TcpRequestError> =
+                                    tcp_stream_util::request(
+                                        bootstrap.clone(),
+                                        Request::of(
+                                            alterconfigs_request::AlterConfigsRequest { resources: vec![resource], validate_only: false },
+                                            33,
+                                            0,
+                                        ),
+                                    );
+                                alterconfigs_response
+                                    .map_err(|tcp_error| StateFNError::caused("AlterConfigs request failed", tcp_error))
+                                    .and_then(|alterconfigs_response| {
+                                        match alterconfigs_response.response_message.resources.first() {
+                                            None => Err(StateFNError::error("Missing resources from AlterConfigs request")),
+                                            Some(resource) => {
+                                                if resource.error_code == 0 {
+                                                    Ok(())
+                                                } else {
+                                                    Err(StateFNError::Error(
+                                                        format!("AlterConfigs request failed with error code {}, {}", resource.error_code, resource.error_message.clone().unwrap_or(format!(""))))
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    })
+                            };
+
+                            match topic_info_state.selected_index {
                                 0 => {
-                                    match topic_metadata.new_config_resource {
+                                    match topic_info_state.new_config_resource {
                                         None => {
-                                            // set name of config
+                                            // set name of new config entry
+                                            match new_value {
+                                                None => Err(StateFNError::error("Config name can not be empty")),
+                                                Some(ref config_name) => {
+                                                    let mut topic_info_state = topic_info_state.clone();
+                                                    topic_info_state.new_config_resource = Some(NewConfigResourcePlaceholder(config_name.clone()));
+                                                    Ok(topic_info_state)
+                                                }
+                                            }
                                         }
-                                        Some(NewConfigResourcePlaceholder(ref name, None)) => {
+                                        Some(NewConfigResourcePlaceholder(ref config_name)) => {
                                             // send AlterConfigs request
-                                        }
-                                        Some(NewConfigResourcePlaceholder(_, Some(_))) => {
-                                            // invalid state
+                                            alter_config(config_name.clone(), new_value.clone()).map(|_| {
+                                                let mut topic_info_state = topic_info_state.clone();
+                                                topic_info_state.new_config_resource = None;
+                                                topic_info_state
+                                            })
                                         }
                                     }
                                 }
-                                non_zero => {
+                                non_zero_index => {
                                     // modify existing config
+                                    match topic_info_state.config_resource.config_entries.get(non_zero_index) {
+                                        None => Err(StateFNError::error("Error trying to modify selected config")),
+                                        Some(config_entry) => {
+                                            alter_config(config_entry.config_name.clone(), new_value.clone()).map(|_| {
+                                                let mut topic_info_state = topic_info_state.clone();
+                                                topic_info_state.new_config_resource = None;
+                                                topic_info_state
+                                            })
+                                        }
+                                    }
                                 }
                             }
-
-                        });
-
-                        Err(StateFNError::error("not implemented"))
+                        }).unwrap_or(Err(StateFNError::error("Topic info not available")))
                     }
                 }
             }))
@@ -469,15 +515,9 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             }
         }
         ValueModified(modify_fn) => {
-            modify_fn(&current_state).map(|modification: Modification| {
-                match modification {
-                    Modification::NewTopicConfig(placeholder) => {
-                        current_state.clone()
-                    }
-                    Modification::ExistingTopicConfig(config_name) => {
-                        current_state.clone()
-                    }
-                }
+            modify_fn(&current_state).map(|topic_info_state: TopicInfoState| {
+                current_state.topic_info_state = Some(topic_info_state);
+                current_state.clone()
             })
         }
     }

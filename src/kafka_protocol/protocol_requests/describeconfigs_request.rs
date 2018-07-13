@@ -15,15 +15,6 @@ pub struct Resource {
     pub config_names: Option<Vec<String>>
 }
 
-pub enum ResourceTypes {
-    Unknown = 0,
-    Any = 1,
-    Topic = 2,
-    Group = 3,
-    Cluster = 4,
-    Broker = 5,
-}
-
 impl ProtocolSerializable for DescribeConfigsRequest {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
         let resources = self.resources;
