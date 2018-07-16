@@ -2,6 +2,7 @@ use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_response::ResponseHeader;
 use kafka_protocol::protocol_serializable::*;
 
+#[derive(Clone, Debug)]
 pub struct DescribeConfigsResponse {
     pub throttle_time_ms: i32,
     pub resources: Vec<Resource>,

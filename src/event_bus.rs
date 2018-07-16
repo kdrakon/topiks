@@ -229,7 +229,14 @@ fn to_event(message: Message) -> Event {
 
                             match resource.first() {
                                 None => Err(StateFNError::caused("", TcpRequestError::from("API response missing topic resource info"))),
-                                Some(resource) => Ok(TopicInfoState { topic_metadata, config_resource: resource.clone(), new_config_resource: None, selected_index: 0 })
+                                Some(resource) => {
+                                    if resource.error_code == 0 {
+                                        Ok(TopicInfoState { topic_metadata, config_resource: resource.clone(), new_config_resource: None, selected_index: 0 })
+                                    } else {
+                                        let error_msg = resource.error_message.clone().unwrap_or(format!(""));
+                                        Err(StateFNError::Error(format!("Error describing config. {}", error_msg)))
+                                    }
+                                }
                             }
                         }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
                     })
@@ -404,7 +411,7 @@ fn to_event(message: Message) -> Event {
                                 }
                                 non_zero_index => {
                                     // modify existing config
-                                    match topic_info_state.config_resource.config_entries.get(non_zero_index) {
+                                    match topic_info_state.config_resource.config_entries.get(non_zero_index - 1) {
                                         None => Err(StateFNError::error("Error trying to modify selected config")),
                                         Some(config_entry) => {
                                             alter_config(config_entry.config_name.clone(), new_value.clone()).map(|_| {
