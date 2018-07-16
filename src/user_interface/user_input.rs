@@ -10,11 +10,13 @@ use std::sync::mpsc::Sender;
 use event_bus::Message;
 use event_bus::Message::UserInput;
 
-pub fn read(label: &str, (cursor_x, cursor_y): (u16, u16), sender: Sender<Message>) -> Option<String> {
+pub fn read(label: &str, (cursor_x, cursor_y): (u16, u16), sender: Sender<Message>) -> Result<Option<String>, ()> {
     let stdin = std::io::stdin();
     sender.send(UserInput(String::from(label)));
 
     let mut input: Vec<char> = vec![];
+    let mut cancelled = false;
+
     for key in stdin.keys() {
         match key.unwrap() {
             Key::Backspace => {
@@ -26,6 +28,10 @@ pub fn read(label: &str, (cursor_x, cursor_y): (u16, u16), sender: Sender<Messag
             Key::Char(c) => {
                 input.push(c);
             }
+            Key::Esc => {
+                cancelled = true;
+                break;
+            }
             _ => {} // ignore everything else
         }
 
@@ -34,9 +40,13 @@ pub fn read(label: &str, (cursor_x, cursor_y): (u16, u16), sender: Sender<Messag
 
     sender.send(UserInput(String::from("")));
 
-    let read = input.iter().collect::<String>();
-    match read.len() {
-        0 => None,
-        _ => Some(read)
+    if !cancelled {
+        let read = input.iter().collect::<String>();
+        match read.len() {
+            0 => Ok(None),
+            _ => Ok(Some(read))
+        }
+    } else {
+        Err(())
     }
 }

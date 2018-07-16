@@ -119,12 +119,15 @@ fn main() {
                     sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!("Deleting topic"))));
                     if app_config.topic_deletion_confirmation {
                         let (width, height) = terminal_size().unwrap();
-                        if let Some(ref confirm) = user_input::read("[Yes]?: ", (1, height), sender.clone()) {
-                            if confirm.eq("Yes") {
-                                sender.send(Message::DeleteTopic(bootstrap_server()));
-                            } else {
-                                sender.send(Message::Noop);
+                        match user_input::read("[Yes]?: ", (1, height), sender.clone()) {
+                            Ok(Some(confirm)) => {
+                                if confirm.eq("Yes") {
+                                    sender.send(Message::DeleteTopic(bootstrap_server()));
+                                } else {
+                                    sender.send(Message::Noop);
+                                }
                             }
+                            _ => ()
                         }
                     } else {
                         sender.send(Message::DeleteTopic(bootstrap_server()));
@@ -154,8 +157,9 @@ fn main() {
                 sender.send(Message::DisplayUIMessage(DialogMessage::Info(format!("Search"))));
                 let (width, height) = terminal_size().unwrap();
                 let query = match user_input::read("/", (1, height), sender.clone()) {
-                    Some(query) => Message::SetTopicQuery(Query(query)),
-                    None => Message::SetTopicQuery(NoQuery)
+                    Ok(Some(query)) => Message::SetTopicQuery(Query(query)),
+                    Ok(None) => Message::SetTopicQuery(NoQuery),
+                    Err(_) => Message::SetTopicQuery(NoQuery)
                 };
                 sender.send(query);
                 sender.send(Message::Select(SearchNext));
@@ -166,10 +170,13 @@ fn main() {
             }
             Key::Char('\n') => {
                 if app_config.modification_enabled {
-                    sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!(""))));
                     let (width, height) = terminal_size().unwrap();
-                    let modify_value = user_input::read(": ", (1, height), sender.clone());
-                    sender.send(Message::ModifyValue(bootstrap_server(), modify_value));
+                    match user_input::read(":", (1, height), sender.clone()) {
+                        Ok(modify_value) => {
+                            sender.send(Message::ModifyValue(bootstrap_server(), modify_value));
+                        }
+                        _ => ()
+                    }
                 }
             }
             _ => {}
