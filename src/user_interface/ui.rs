@@ -135,7 +135,7 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
     let paged = PagedVec::from(&config_resource.config_entries, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(topic_info.selected_index) {
-        let indexed = page.iter().zip((1..page.len() + 1)).collect::<Vec<(&&ConfigEntry, usize)>>();
+        let indexed = page.iter().zip((1..=page.len())).collect::<Vec<(&&ConfigEntry, usize)>>();
         let mut config_list_items =
             indexed.iter().map(|&(config_entry, index)| {
                 let item = Config { name: pad_right(&config_entry.config_name, longest_config_name_len), value: config_entry.config_value.clone() };

@@ -4,7 +4,8 @@ use std::io::Stdout;
 use termion::screen::AlternateScreen;
 
 pub fn pad_right(input: &String, width: u16) -> String {
-    let pad_length = cmp::max(width - input.len() as u16, 0);
+    let str_len = cmp::min(input.len() as u16, width);
+    let pad_length = cmp::max(width - str_len, 0);
     (0..pad_length).map(|i| { String::from(" ") }).fold(input.clone(), |a, b| format!("{}{}", a, b))
 }
 
