@@ -223,12 +223,24 @@ fn to_event(message: Message) -> Event {
                             match topic_info_state.config_resource.config_entries.get(topic_info_state.selected_index) {
                                 None => Err(StateFNError::error("Error trying to modify selected config")),
                                 Some(config_entry) => {
-                                    alterconfigs_request::exec(
-                                        bootstrap.clone(),
-                                        topic_info_state.topic_metadata.topic.clone(),
-                                        config_entry.config_name.clone(),
-                                        None,
-                                    ).map(|_| {
+                                    let existing_configs =
+                                        topic_info_state.config_resource.config_entries.iter()
+                                            .filter(|c| c.config_source == describeconfigs_response::ConfigSource::TopicConfig as i8)
+                                            .filter(|c| c.config_name != config_entry.config_name)
+                                            .map(|c| {
+                                                alterconfigs_request::ConfigEntry {
+                                                    config_name: c.config_name.clone(),
+                                                    config_value: c.config_value.clone(),
+                                                }
+                                            }).collect::<Vec<alterconfigs_request::ConfigEntry>>();
+
+                                    let resource = alterconfigs_request::Resource {
+                                        resource_type: protocol_requests::ResourceTypes::Topic as i8,
+                                        resource_name: topic_info_state.topic_metadata.topic.clone(),
+                                        config_entries: existing_configs,
+                                    };
+
+                                    alterconfigs_request::exec(bootstrap.clone(), resource).map(|_| {
                                         Deletion::Config(config_entry.config_name.clone())
                                     })
                                 }
@@ -398,12 +410,26 @@ fn to_event(message: Message) -> Event {
                             match topic_info_state.config_resource.config_entries.get(topic_info_state.selected_index) {
                                 None => Err(StateFNError::error("Error trying to modify selected config")),
                                 Some(config_entry) => {
-                                    alterconfigs_request::exec(
-                                        bootstrap.clone(),
-                                        topic_info_state.topic_metadata.topic.clone(),
-                                        config_entry.config_name.clone(),
-                                        new_value.clone(),
-                                    ).map(|_| {
+                                    let mut existing_configs =
+                                        topic_info_state.config_resource.config_entries.iter()
+                                            .filter(|c| c.config_source == describeconfigs_response::ConfigSource::TopicConfig as i8)
+                                            .filter(|c| c.config_name != config_entry.config_name)
+                                            .map(|c| {
+                                                alterconfigs_request::ConfigEntry {
+                                                    config_name: c.config_name.clone(),
+                                                    config_value: c.config_value.clone(),
+                                                }
+                                            }).collect::<Vec<alterconfigs_request::ConfigEntry>>();
+
+                                    existing_configs.push(alterconfigs_request::ConfigEntry { config_name: config_entry.config_name.clone(), config_value: new_value.clone() });
+
+                                    let resource = alterconfigs_request::Resource {
+                                        resource_type: protocol_requests::ResourceTypes::Topic as i8,
+                                        resource_name: topic_info_state.topic_metadata.topic.clone(),
+                                        config_entries: existing_configs,
+                                    };
+
+                                    alterconfigs_request::exec(bootstrap.clone(), resource).map(|_| {
                                         Modification::Config(config_entry.config_name.clone())
                                     })
                                 }

@@ -34,6 +34,15 @@ pub struct ConfigSynonym {
     pub config_source: i8,
 }
 
+pub enum ConfigSource {
+    UnknownConfig = 0,
+    TopicConfig = 1,
+    DynamicBrokerConfig = 2,
+    DynamicDefaultBrokerConfig = 3,
+    StaticBrokerConfig = 4,
+    DefaultConfig = 5,
+}
+
 impl ProtocolDeserializable<DescribeConfigsResponse> for Vec<u8> {
     fn into_protocol_type(self) -> Result<DescribeConfigsResponse, DeserializeError> {
         de_i32(self[0..=3].to_vec()).and_then(|throttle_time_ms| {
