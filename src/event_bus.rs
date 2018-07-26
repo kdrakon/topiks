@@ -65,7 +65,7 @@ enum Event {
     ResourceDeleted(StateFn<Deletion>),
     InfoToggled(StateFn<TopicInfoState>),
     PartitionsToggled(StateFn<PartitionInfoState>),
-    ValueModified(StateFn<(Option<NewConfigResourcePlaceholder>, Option<Modification>)>),
+    ValueModified(StateFn<Modification>),
 }
 
 pub fn start() -> Sender<Message> {
@@ -148,9 +148,10 @@ fn to_event(message: Message) -> Event {
                         let selected_index =
                             state.partition_info_state.as_ref().map(|partition_info_state| {
                                 let selected_index = partition_info_state.selected_index;
+                                let entries_len = partition_info_state.partition_metadata.len() - 1;
                                 match direction {
                                     Up => if selected_index > 0 { selected_index - 1 } else { selected_index },
-                                    Down => if selected_index < (partition_info_state.partition_metadata.len() - 1) { selected_index + 1 } else { selected_index },
+                                    Down => if selected_index < entries_len { selected_index + 1 } else { selected_index },
                                     Top => 0,
                                     Bottom => partition_info_state.partition_metadata.len() - 1,
                                     SearchNext => selected_index // not implemented
@@ -162,7 +163,7 @@ fn to_event(message: Message) -> Event {
                         let selected_index =
                             state.topic_info_state.as_ref().map(|topic_info_state| {
                                 let selected_index = topic_info_state.selected_index;
-                                let entries_len = topic_info_state.config_resource.config_entries.len(); // doesn't '- 1' to include new config entry
+                                let entries_len = topic_info_state.config_resource.config_entries.len() - 1;
                                 match direction {
                                     Up => if selected_index > 0 { selected_index - 1 } else { selected_index },
                                     Down => if selected_index < entries_len { selected_index + 1 } else { selected_index },
@@ -219,24 +220,17 @@ fn to_event(message: Message) -> Event {
                     }
                     CurrentView::TopicInfo => {
                         state.topic_info_state.as_ref().map(|topic_info_state| {
-                            match topic_info_state.selected_index {
-                                0 => {
-                                    Err(StateFNError::error("Can not delete this"))
-                                }
-                                non_zero_index => {
-                                    match topic_info_state.config_resource.config_entries.get(non_zero_index - 1) {
-                                        None => Err(StateFNError::error("Error trying to modify selected config")),
-                                        Some(config_entry) => {
-                                            alterconfigs_request::exec(
-                                                bootstrap.clone(),
-                                                topic_info_state.topic_metadata.topic.clone(),
-                                                config_entry.config_name.clone(),
-                                                None,
-                                            ).map(|_| {
-                                                Deletion::Config(config_entry.config_name.clone())
-                                            })
-                                        }
-                                    }
+                            match topic_info_state.config_resource.config_entries.get(topic_info_state.selected_index) {
+                                None => Err(StateFNError::error("Error trying to modify selected config")),
+                                Some(config_entry) => {
+                                    alterconfigs_request::exec(
+                                        bootstrap.clone(),
+                                        topic_info_state.topic_metadata.topic.clone(),
+                                        config_entry.config_name.clone(),
+                                        None,
+                                    ).map(|_| {
+                                        Deletion::Config(config_entry.config_name.clone())
+                                    })
                                 }
                             }
                         }).unwrap_or(Err(StateFNError::error("Topic metadata not available")))
@@ -273,7 +267,6 @@ fn to_event(message: Message) -> Event {
                                         Ok(TopicInfoState {
                                             topic_metadata,
                                             config_resource: resource.clone(),
-                                            new_config_resource: None,
                                             selected_index: 0,
                                             configs_marked_deleted: vec![],
                                             configs_marked_modified: vec![],
@@ -402,46 +395,17 @@ fn to_event(message: Message) -> Event {
                     CurrentView::Partitions => Err(StateFNError::error("Modifications not supported for partitions")),
                     CurrentView::TopicInfo => {
                         state.topic_info_state.as_ref().map(|topic_info_state| {
-                            match topic_info_state.selected_index {
-                                0 => {
-                                    match topic_info_state.new_config_resource {
-                                        None => {
-                                            // set name of new config entry
-                                            match new_value {
-                                                None => Err(StateFNError::error("Config name can not be empty")),
-                                                Some(ref config_name) => {
-                                                    Ok((Some(NewConfigResourcePlaceholder(config_name.clone())), None))
-                                                }
-                                            }
-                                        }
-                                        Some(NewConfigResourcePlaceholder(ref config_name)) => {
-                                            // send AlterConfigs request
-                                            alterconfigs_request::exec(
-                                                bootstrap.clone(),
-                                                topic_info_state.topic_metadata.topic.clone(),
-                                                config_name.clone(),
-                                                new_value.clone(),
-                                            ).map(|_|{
-                                                (None, Some(Modification::Config(config_name.clone())))
-                                            })
-                                        }
-                                    }
-                                }
-                                non_zero_index => {
-                                    // modify existing config
-                                    match topic_info_state.config_resource.config_entries.get(non_zero_index - 1) {
-                                        None => Err(StateFNError::error("Error trying to modify selected config")),
-                                        Some(config_entry) => {
-                                            alterconfigs_request::exec(
-                                                bootstrap.clone(),
-                                                topic_info_state.topic_metadata.topic.clone(),
-                                                config_entry.config_name.clone(),
-                                                new_value.clone(),
-                                            ).map(|_|{
-                                                (None, Some(Modification::Config(config_entry.config_name.clone())))
-                                            })
-                                        }
-                                    }
+                            match topic_info_state.config_resource.config_entries.get(topic_info_state.selected_index) {
+                                None => Err(StateFNError::error("Error trying to modify selected config")),
+                                Some(config_entry) => {
+                                    alterconfigs_request::exec(
+                                        bootstrap.clone(),
+                                        topic_info_state.topic_metadata.topic.clone(),
+                                        config_entry.config_name.clone(),
+                                        new_value.clone(),
+                                    ).map(|_| {
+                                        Modification::Config(config_entry.config_name.clone())
+                                    })
                                 }
                             }
                         }).unwrap_or(Err(StateFNError::error("Topic info not available")))
@@ -555,12 +519,11 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             }
         }
         ValueModified(modify_fn) => {
-            modify_fn(&current_state).map(|(new_config_resource_placeholder, modification): (Option<NewConfigResourcePlaceholder>, Option<Modification>)| {
+            modify_fn(&current_state).map(|modification: Modification| {
                 let current_topic_info_state = current_state.topic_info_state.clone();
-                current_state.topic_info_state = current_topic_info_state.map(|mut topic_info_state|{
-                    topic_info_state.new_config_resource = new_config_resource_placeholder;
-                    if let Some(Modification::Config(config_name)) = modification {
-                        topic_info_state.configs_marked_modified.push(config_name);
+                current_state.topic_info_state = current_topic_info_state.map(|mut topic_info_state| {
+                    match modification {
+                        Modification::Config(config_name) => topic_info_state.configs_marked_modified.push(config_name)
                     }
                     topic_info_state
                 });

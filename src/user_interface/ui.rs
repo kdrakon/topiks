@@ -28,7 +28,6 @@ use user_interface::selectable_list::TopicListItem;
 use util::paged_vec::PagedVec;
 use util::utils;
 use util::utils::pad_right;
-use state::NewConfigResourcePlaceholder;
 
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -135,8 +134,8 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
     let paged = PagedVec::from(&config_resource.config_entries, (height - 1) as usize);
 
     if let Some((page_index, page)) = paged.page(topic_info.selected_index) {
-        let indexed = page.iter().zip((1..=page.len())).collect::<Vec<(&&ConfigEntry, usize)>>();
-        let mut config_list_items =
+        let indexed = page.iter().zip((0..page.len())).collect::<Vec<(&&ConfigEntry, usize)>>();
+        let list_items =
             indexed.iter().map(|&(config_entry, index)| {
                 let item = Config { name: pad_right(&config_entry.config_name, longest_config_name_len), value: config_entry.config_value.clone() };
                 let item = if page_index == index { Selected(Box::from(item)) } else { item };
@@ -146,14 +145,6 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
                 let item = if topic_info.configs_marked_modified.contains(&config_entry.config_name) { Modified(Box::from(item)) } else { item };
                 item
             }).collect::<Vec<TopicConfigurationItem>>();
-
-        let new_config = match topic_info.new_config_resource {
-            None => TopicConfigurationItem::NewConfig { name: pad_right(&format!("[Add new config]"), longest_config_name_len), value: None },
-            Some(NewConfigResourcePlaceholder(ref new_name)) => TopicConfigurationItem::NewConfig { name: pad_right(&new_name, longest_config_name_len), value: Some(format!("[Set Value]")) }
-        };
-        let new_config = if page_index == 0 { Selected(Box::from(new_config)) } else { new_config };
-        let mut list_items = vec![new_config];
-        list_items.append(&mut config_list_items);
 
         (SelectableList { list: list_items }).display(screen, (start_x, start_y + 3), width);
     }
