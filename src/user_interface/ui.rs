@@ -142,6 +142,7 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
                 let item = if page_index == index { Selected(Box::from(item)) } else { item };
                 let item = if config_entry.read_only { ReadOnlyConfig(Box::from(item)) } else { item };
                 let item = if config_entry.is_sensitive { SensitiveConfig(Box::from(item)) } else { item };
+                let item = if topic_info.configs_marked_deleted.contains(&config_entry.config_name) { Deleted(Box::from(item)) } else { item };
                 item
             }).collect::<Vec<TopicConfigurationItem>>();
 

@@ -1,5 +1,12 @@
 use kafka_protocol::protocol_serializable::*;
 use kafka_protocol::protocol_primitives::*;
+use kafka_protocol::protocol_requests;
+use kafka_protocol::protocol_response::Response;
+use kafka_protocol::protocol_responses::alterconfigs_response::AlterConfigsResponse;
+use util::tcp_stream_util::TcpRequestError;
+use util::tcp_stream_util;
+use kafka_protocol::protocol_request::Request;
+use state::StateFNError;
 
 /// Version 0
 ///
@@ -63,4 +70,37 @@ impl ProtocolSerializable for ConfigEntry {
             })
         })
     }
+}
+
+pub fn exec(bootstrap: String, topic: String, config_name: String, config_value: Option<String>) -> Result<(), StateFNError> {
+    let resource = Resource {
+        resource_type: protocol_requests::ResourceTypes::Topic as i8,
+        resource_name: topic,
+        config_entries: vec![ConfigEntry { config_name, config_value }],
+    };
+    let alterconfigs_response: Result<Response<AlterConfigsResponse>, TcpRequestError> =
+        tcp_stream_util::request(
+            bootstrap.clone(),
+            Request::of(
+                AlterConfigsRequest { resources: vec![resource], validate_only: false },
+                33,
+                0,
+            ),
+        );
+    alterconfigs_response
+        .map_err(|tcp_error| StateFNError::caused("AlterConfigs request failed", tcp_error))
+        .and_then(|alterconfigs_response| {
+            match alterconfigs_response.response_message.resources.first() {
+                None => Err(StateFNError::error("Missing resources from AlterConfigs request")),
+                Some(resource) => {
+                    if resource.error_code == 0 {
+                        Ok(())
+                    } else {
+                        Err(StateFNError::Error(
+                            format!("AlterConfigs request failed with error code {}, {}", resource.error_code, resource.error_message.clone().unwrap_or(format!(""))))
+                        )
+                    }
+                }
+            }
+        })
 }
