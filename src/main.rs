@@ -46,8 +46,8 @@ struct AppConfig<'a> {
     bootstrap_server: &'a str,
     consumer_group: Option<&'a str>,
     request_timeout_ms: i32,
-    topic_deletion: bool,
-    topic_deletion_confirmation: bool,
+    deletion_allowed: bool,
+    deletion_confirmation: bool,
     modification_enabled: bool,
 }
 
@@ -58,7 +58,7 @@ fn main() {
         .version("1.1.0")
         .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
         .arg(Arg::with_name("consumer-group").long("consumer-group").short("c").takes_value(true).help("Consumer group for fetching offsets"))
-        .arg(Arg::with_name("delete").short("D").help("Enable topic deletion"))
+        .arg(Arg::with_name("delete").short("D").help("Enable topic/config deletion"))
         .arg(Arg::with_name("no-delete-confirmation").long("no-delete-confirmation").help("Disable delete confirmation <Danger!>"))
         .arg(Arg::with_name("modify").short("M").help("Enable modification of topic configurations and other resources"))
         .get_matches();
@@ -67,8 +67,8 @@ fn main() {
         bootstrap_server: matches.value_of("bootstrap-server").unwrap(),
         consumer_group: matches.value_of("consumer-group"),
         request_timeout_ms: 30_000,
-        topic_deletion: matches.is_present("delete"),
-        topic_deletion_confirmation: !matches.is_present("no-delete-confirmation"),
+        deletion_allowed: matches.is_present("delete"),
+        deletion_confirmation: !matches.is_present("no-delete-confirmation"),
         modification_enabled: matches.is_present("modify"),
     };
 
@@ -115,14 +115,14 @@ fn main() {
                 sender.send(Message::GetTopics(bootstrap_server()));
             }
             Key::Char('d') => {
-                if app_config.topic_deletion {
-                    sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!("Deleting topic"))));
-                    if app_config.topic_deletion_confirmation {
+                if app_config.deletion_allowed {
+                    sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!("Deleting..."))));
+                    if app_config.deletion_confirmation {
                         let (width, height) = terminal_size().unwrap();
                         match user_input::read("[Yes]?: ", (1, height), sender.clone()) {
                             Ok(Some(confirm)) => {
                                 if confirm.eq("Yes") {
-                                    sender.send(Message::DeleteTopic(bootstrap_server()));
+                                    sender.send(Message::Delete(bootstrap_server()));
                                 } else {
                                     sender.send(Message::Noop);
                                 }
@@ -130,7 +130,7 @@ fn main() {
                             _ => ()
                         }
                     } else {
-                        sender.send(Message::DeleteTopic(bootstrap_server()));
+                        sender.send(Message::Delete(bootstrap_server()));
                     }
                     sender.send(Message::DisplayUIMessage(DialogMessage::None));
                 }

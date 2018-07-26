@@ -101,6 +101,8 @@ pub struct TopicInfoState {
     pub config_resource: Resource,
     pub new_config_resource: Option<NewConfigResourcePlaceholder>,
     pub selected_index: usize,
+    pub configs_marked_deleted: Vec<String>,
+    pub configs_marked_modified: Vec<String>,
 }
 
 #[derive(Clone)]

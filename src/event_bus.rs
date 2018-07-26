@@ -1,6 +1,7 @@
 use AppConfig;
 use event_bus::Event::*;
 use event_bus::Message::*;
+use event_bus::Message::Delete;
 use event_bus::MoveSelection::*;
 use event_bus::TopicQuery::*;
 use kafka_protocol::protocol_request::Request;
@@ -35,6 +36,8 @@ pub enum MoveSelection { Up, Down, Top, Bottom, SearchNext }
 
 pub enum TopicQuery { NoQuery, Query(String) }
 
+pub enum Deletion { Topic(String), Config(String) }
+
 pub enum Message {
     Quit,
     Noop,
@@ -43,7 +46,7 @@ pub enum Message {
     GetTopics(BootstrapServer),
     Select(MoveSelection),
     SetTopicQuery(TopicQuery),
-    DeleteTopic(BootstrapServer),
+    Delete(BootstrapServer),
     ToggleTopicInfo(BootstrapServer),
     TogglePartitionInfo(BootstrapServer, Option<ConsumerGroup>),
     ModifyValue(BootstrapServer, Option<String>),
@@ -57,7 +60,7 @@ enum Event {
     ListTopics(StateFn<metadata_response::MetadataResponse>),
     SelectionUpdated(StateFn<(CurrentView, usize)>),
     TopicQuerySet(Option<String>),
-    TopicDeleted(StateFn<String>),
+    ResourceDeleted(StateFn<Deletion>),
     InfoToggled(StateFn<TopicInfoState>),
     PartitionsToggled(StateFn<PartitionInfoState>),
     ValueModified(StateFn<TopicInfoState>),
@@ -179,30 +182,64 @@ fn to_event(message: Message) -> Event {
             }
         }
 
-        DeleteTopic(BootstrapServer(bootstrap)) => {
-            TopicDeleted(Box::from(move |state: &State| {
-                state.metadata.as_ref().map(|metadata| {
-                    metadata.topic_metadata.get(state.selected_index).map(|delete_topic_metadata: &metadata_response::TopicMetadata| {
-                        let delete_topic_name = delete_topic_metadata.topic.clone();
-                        let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
-                            tcp_stream_util::request(
-                                bootstrap.clone(),
-                                Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }, 20, 1),
-                            );
-                        match result {
-                            Ok(response) => {
-                                let map =
-                                    response.response_message.topic_error_codes.iter().map(|err| (&err.topic, err.error_code)).collect::<HashMap<&String, i16>>();
-                                if map.values().all(|err_code| *err_code == 0) {
-                                    Ok(delete_topic_name)
-                                } else {
-                                    Err(StateFNError::caused("Failed to delete topic", TcpRequestError::of(format!("Non-zero topic error code encountered: {:?}", map))))
+        Delete(BootstrapServer(bootstrap)) => {
+            ResourceDeleted(Box::from(move |state: &State| {
+                match state.current_view {
+                    CurrentView::Partitions => {
+                        Err(StateFNError::error("Partition deletion not supported"))
+                    }
+                    CurrentView::Topics => {
+                        state.metadata.as_ref().map(|metadata| {
+                            metadata.topic_metadata.get(state.selected_index).map(|delete_topic_metadata: &metadata_response::TopicMetadata| {
+                                let delete_topic_name = delete_topic_metadata.topic.clone();
+                                let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
+                                    tcp_stream_util::request(
+                                        bootstrap.clone(),
+                                        Request::of(
+                                            deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 },
+                                            20,
+                                            1),
+                                    );
+                                match result {
+                                    Ok(response) => {
+                                        let map =
+                                            response.response_message.topic_error_codes.iter().map(|err| (&err.topic, err.error_code)).collect::<HashMap<&String, i16>>();
+                                        if map.values().all(|err_code| *err_code == 0) {
+                                            Ok(Deletion::Topic(delete_topic_name))
+                                        } else {
+                                            Err(StateFNError::caused("Failed to delete topic", TcpRequestError::of(format!("Non-zero topic error code encountered: {:?}", map))))
+                                        }
+                                    }
+                                    Err(err) => Err(StateFNError::caused("Failed to delete topic", err))
+                                }
+                            }).unwrap_or(Err(StateFNError::error("Could not select or find topic to delete")))
+                        }).unwrap_or(Err(StateFNError::error("Topic metadata not available")))
+                    }
+                    CurrentView::TopicInfo => {
+                        state.topic_info_state.as_ref().map(|topic_info_state|{
+                            match topic_info_state.selected_index {
+                                0 => {
+                                    Err(StateFNError::error("Can not delete this"))
+                                }
+                                non_zero_index => {
+                                    match topic_info_state.config_resource.config_entries.get(non_zero_index - 1) {
+                                        None => Err(StateFNError::error("Error trying to modify selected config")),
+                                        Some(config_entry) => {
+                                            alterconfigs_request::exec(
+                                                bootstrap.clone(),
+                                                topic_info_state.topic_metadata.topic.clone(),
+                                                config_entry.config_name.clone(),
+                                                None,
+                                            ).map(|_|{
+                                                Deletion::Config(config_entry.config_name.clone())
+                                            })
+                                        }
+                                    }
                                 }
                             }
-                            Err(err) => Err(StateFNError::caused("Failed to delete topic", err))
-                        }
-                    }).unwrap_or(Err(StateFNError::error("Could not select or find topic to delete")))
-                }).unwrap_or(Err(StateFNError::error("Topic metadata not available")))
+                        }).unwrap_or(Err(StateFNError::error("Topic metadata not available")))
+                    }
+                }
             }))
         }
 
@@ -231,7 +268,14 @@ fn to_event(message: Message) -> Event {
                                 None => Err(StateFNError::caused("", TcpRequestError::from("API response missing topic resource info"))),
                                 Some(resource) => {
                                     if resource.error_code == 0 {
-                                        Ok(TopicInfoState { topic_metadata, config_resource: resource.clone(), new_config_resource: None, selected_index: 0 })
+                                        Ok(TopicInfoState {
+                                            topic_metadata,
+                                            config_resource: resource.clone(),
+                                            new_config_resource: None,
+                                            selected_index: 0,
+                                            configs_marked_deleted: vec![],
+                                            configs_marked_modified: vec![]
+                                        })
                                     } else {
                                         let error_msg = resource.error_message.clone().unwrap_or(format!(""));
                                         Err(StateFNError::Error(format!("Error describing config. {}", error_msg)))
@@ -309,7 +353,11 @@ fn to_event(message: Message) -> Event {
                                     let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
                                         tcp_stream_util::request(
                                             format!("{}:{}", coordinator.host, coordinator.port),
-                                            Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }, 9, 3),
+                                            Request::of(
+                                                offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] },
+                                                9,
+                                                3,
+                                            ),
                                         ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
                                             if result.response_message.error_code != 0 {
                                                 Err(TcpRequestError::of(format!("Error code {} with OffsetFetchRequest", result.response_message.error_code)))
@@ -352,39 +400,11 @@ fn to_event(message: Message) -> Event {
                     CurrentView::Partitions => Err(StateFNError::error("Modifications not supported for partitions")),
                     CurrentView::TopicInfo => {
                         state.topic_info_state.as_ref().map(|topic_info_state| {
-                            let alter_config = |config_name: String, config_value: Option<String>| {
-                                let resource = alterconfigs_request::Resource {
-                                    resource_type: protocol_requests::ResourceTypes::Topic as i8,
-                                    resource_name: topic_info_state.topic_metadata.topic.clone(),
-                                    config_entries: vec![alterconfigs_request::ConfigEntry { config_name: config_name.clone(), config_value: config_value.clone() }],
-                                };
-                                let alterconfigs_response: Result<Response<alterconfigs_response::AlterConfigsResponse>, TcpRequestError> =
-                                    tcp_stream_util::request(
-                                        bootstrap.clone(),
-                                        Request::of(
-                                            alterconfigs_request::AlterConfigsRequest { resources: vec![resource], validate_only: false },
-                                            33,
-                                            0,
-                                        ),
-                                    );
-                                alterconfigs_response
-                                    .map_err(|tcp_error| StateFNError::caused("AlterConfigs request failed", tcp_error))
-                                    .and_then(|alterconfigs_response| {
-                                        match alterconfigs_response.response_message.resources.first() {
-                                            None => Err(StateFNError::error("Missing resources from AlterConfigs request")),
-                                            Some(resource) => {
-                                                if resource.error_code == 0 {
-                                                    Ok(())
-                                                } else {
-                                                    Err(StateFNError::Error(
-                                                        format!("AlterConfigs request failed with error code {}, {}", resource.error_code, resource.error_message.clone().unwrap_or(format!(""))))
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    })
+                            let clear_new_config_resource = |_: ()| {
+                                let mut topic_info_state = topic_info_state.clone();
+                                topic_info_state.new_config_resource = None;
+                                topic_info_state
                             };
-
                             match topic_info_state.selected_index {
                                 0 => {
                                     match topic_info_state.new_config_resource {
@@ -401,11 +421,12 @@ fn to_event(message: Message) -> Event {
                                         }
                                         Some(NewConfigResourcePlaceholder(ref config_name)) => {
                                             // send AlterConfigs request
-                                            alter_config(config_name.clone(), new_value.clone()).map(|_| {
-                                                let mut topic_info_state = topic_info_state.clone();
-                                                topic_info_state.new_config_resource = None;
-                                                topic_info_state
-                                            })
+                                            alterconfigs_request::exec(
+                                                bootstrap.clone(),
+                                                topic_info_state.topic_metadata.topic.clone(),
+                                                config_name.clone(),
+                                                new_value.clone(),
+                                            ).map(clear_new_config_resource)
                                         }
                                     }
                                 }
@@ -414,11 +435,12 @@ fn to_event(message: Message) -> Event {
                                     match topic_info_state.config_resource.config_entries.get(non_zero_index - 1) {
                                         None => Err(StateFNError::error("Error trying to modify selected config")),
                                         Some(config_entry) => {
-                                            alter_config(config_entry.config_name.clone(), new_value.clone()).map(|_| {
-                                                let mut topic_info_state = topic_info_state.clone();
-                                                topic_info_state.new_config_resource = None;
-                                                topic_info_state
-                                            })
+                                            alterconfigs_request::exec(
+                                                bootstrap.clone(),
+                                                topic_info_state.topic_metadata.topic.clone(),
+                                                config_entry.config_name.clone(),
+                                                new_value.clone(),
+                                            ).map(clear_new_config_resource)
                                         }
                                     }
                                 }
@@ -481,10 +503,22 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             current_state.topic_name_query = query;
             Ok(current_state.clone())
         }
-        TopicDeleted(delete_fn) => {
-            delete_fn(&current_state).map(|deleted_name: String| {
-                current_state.marked_deleted.push(deleted_name);
-                current_state.clone()
+        ResourceDeleted(delete_fn) => {
+            delete_fn(&current_state).map(|deleted: Deletion| {
+                match deleted {
+                    Deletion::Topic(topic) => {
+                        current_state.marked_deleted.push(topic);
+                        current_state.clone()
+                    }
+                    Deletion::Config(config) => {
+                        let current_topic_info_state = current_state.topic_info_state.clone();
+                        current_state.topic_info_state = current_topic_info_state.map(|mut topic_info_state|{
+                            topic_info_state.configs_marked_deleted.push(config);
+                            topic_info_state
+                        });
+                        current_state.clone()
+                    }
+                }
             })
         }
         InfoToggled(topic_info_fn) => {

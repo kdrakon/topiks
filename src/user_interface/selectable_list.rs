@@ -78,6 +78,8 @@ pub enum TopicConfigurationItem {
     Selected(Box<TopicConfigurationItem>),
     ReadOnlyConfig(Box<TopicConfigurationItem>),
     SensitiveConfig(Box<TopicConfigurationItem>),
+    Deleted(Box<TopicConfigurationItem>),
+
 }
 
 impl SelectableListItem for TopicConfigurationItem {
@@ -89,6 +91,7 @@ impl SelectableListItem for TopicConfigurationItem {
             Selected(config) => format!("{}{}", color::Bg(color::LightBlack), config.display()),
             ReadOnlyConfig(config) => format!("{}{}", color::Fg(color::LightMagenta), config.display()),
             SensitiveConfig(config) => format!("{}{}", color::Fg(color::LightRed), config.display()),
+            Deleted(config) => format!("{}{}", color::Fg(color::Red), config.display()),
         }
     }
 }
