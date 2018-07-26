@@ -38,6 +38,8 @@ pub enum TopicQuery { NoQuery, Query(String) }
 
 pub enum Deletion { Topic(String), Config(String) }
 
+pub enum Modification { Config(String) }
+
 pub enum Message {
     Quit,
     Noop,
@@ -63,7 +65,7 @@ enum Event {
     ResourceDeleted(StateFn<Deletion>),
     InfoToggled(StateFn<TopicInfoState>),
     PartitionsToggled(StateFn<PartitionInfoState>),
-    ValueModified(StateFn<TopicInfoState>),
+    ValueModified(StateFn<(Option<NewConfigResourcePlaceholder>, Option<Modification>)>),
 }
 
 pub fn start() -> Sender<Message> {
@@ -216,7 +218,7 @@ fn to_event(message: Message) -> Event {
                         }).unwrap_or(Err(StateFNError::error("Topic metadata not available")))
                     }
                     CurrentView::TopicInfo => {
-                        state.topic_info_state.as_ref().map(|topic_info_state|{
+                        state.topic_info_state.as_ref().map(|topic_info_state| {
                             match topic_info_state.selected_index {
                                 0 => {
                                     Err(StateFNError::error("Can not delete this"))
@@ -230,7 +232,7 @@ fn to_event(message: Message) -> Event {
                                                 topic_info_state.topic_metadata.topic.clone(),
                                                 config_entry.config_name.clone(),
                                                 None,
-                                            ).map(|_|{
+                                            ).map(|_| {
                                                 Deletion::Config(config_entry.config_name.clone())
                                             })
                                         }
@@ -274,7 +276,7 @@ fn to_event(message: Message) -> Event {
                                             new_config_resource: None,
                                             selected_index: 0,
                                             configs_marked_deleted: vec![],
-                                            configs_marked_modified: vec![]
+                                            configs_marked_modified: vec![],
                                         })
                                     } else {
                                         let error_msg = resource.error_message.clone().unwrap_or(format!(""));
@@ -400,11 +402,6 @@ fn to_event(message: Message) -> Event {
                     CurrentView::Partitions => Err(StateFNError::error("Modifications not supported for partitions")),
                     CurrentView::TopicInfo => {
                         state.topic_info_state.as_ref().map(|topic_info_state| {
-                            let clear_new_config_resource = |_: ()| {
-                                let mut topic_info_state = topic_info_state.clone();
-                                topic_info_state.new_config_resource = None;
-                                topic_info_state
-                            };
                             match topic_info_state.selected_index {
                                 0 => {
                                     match topic_info_state.new_config_resource {
@@ -413,9 +410,7 @@ fn to_event(message: Message) -> Event {
                                             match new_value {
                                                 None => Err(StateFNError::error("Config name can not be empty")),
                                                 Some(ref config_name) => {
-                                                    let mut topic_info_state = topic_info_state.clone();
-                                                    topic_info_state.new_config_resource = Some(NewConfigResourcePlaceholder(config_name.clone()));
-                                                    Ok(topic_info_state)
+                                                    Ok((Some(NewConfigResourcePlaceholder(config_name.clone())), None))
                                                 }
                                             }
                                         }
@@ -426,7 +421,9 @@ fn to_event(message: Message) -> Event {
                                                 topic_info_state.topic_metadata.topic.clone(),
                                                 config_name.clone(),
                                                 new_value.clone(),
-                                            ).map(clear_new_config_resource)
+                                            ).map(|_|{
+                                                (None, Some(Modification::Config(config_name.clone())))
+                                            })
                                         }
                                     }
                                 }
@@ -440,7 +437,9 @@ fn to_event(message: Message) -> Event {
                                                 topic_info_state.topic_metadata.topic.clone(),
                                                 config_entry.config_name.clone(),
                                                 new_value.clone(),
-                                            ).map(clear_new_config_resource)
+                                            ).map(|_|{
+                                                (None, Some(Modification::Config(config_entry.config_name.clone())))
+                                            })
                                         }
                                     }
                                 }
@@ -512,7 +511,7 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
                     }
                     Deletion::Config(config) => {
                         let current_topic_info_state = current_state.topic_info_state.clone();
-                        current_state.topic_info_state = current_topic_info_state.map(|mut topic_info_state|{
+                        current_state.topic_info_state = current_topic_info_state.map(|mut topic_info_state| {
                             topic_info_state.configs_marked_deleted.push(config);
                             topic_info_state
                         });
@@ -556,8 +555,15 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             }
         }
         ValueModified(modify_fn) => {
-            modify_fn(&current_state).map(|topic_info_state: TopicInfoState| {
-                current_state.topic_info_state = Some(topic_info_state);
+            modify_fn(&current_state).map(|(new_config_resource_placeholder, modification): (Option<NewConfigResourcePlaceholder>, Option<Modification>)| {
+                let current_topic_info_state = current_state.topic_info_state.clone();
+                current_state.topic_info_state = current_topic_info_state.map(|mut topic_info_state|{
+                    topic_info_state.new_config_resource = new_config_resource_placeholder;
+                    if let Some(Modification::Config(config_name)) = modification {
+                        topic_info_state.configs_marked_modified.push(config_name);
+                    }
+                    topic_info_state
+                });
                 current_state.clone()
             })
         }
