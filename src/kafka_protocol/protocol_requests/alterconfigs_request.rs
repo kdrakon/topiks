@@ -10,13 +10,13 @@ use state::StateFNError;
 
 /// Version 0
 ///
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AlterConfigsRequest {
     pub resources: Vec<Resource>,
     pub validate_only: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Resource {
     pub resource_type: i8,
     pub resource_name: String,
