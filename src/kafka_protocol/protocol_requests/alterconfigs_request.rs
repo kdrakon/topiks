@@ -72,12 +72,7 @@ impl ProtocolSerializable for ConfigEntry {
     }
 }
 
-pub fn exec(bootstrap: String, topic: String, config_name: String, config_value: Option<String>) -> Result<(), StateFNError> {
-    let resource = Resource {
-        resource_type: protocol_requests::ResourceTypes::Topic as i8,
-        resource_name: topic,
-        config_entries: vec![ConfigEntry { config_name, config_value }],
-    };
+pub fn exec(bootstrap: String, resource: Resource) -> Result<(), StateFNError> {
     let alterconfigs_response: Result<Response<AlterConfigsResponse>, TcpRequestError> =
         tcp_stream_util::request(
             bootstrap.clone(),
