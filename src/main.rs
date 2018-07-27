@@ -148,9 +148,11 @@ fn main() {
                 sender.send(Message::Select(Bottom));
             }
             Key::Char('i') => {
+                sender.send(Message::DisplayUIMessage(DialogMessage::None));
                 sender.send(Message::ToggleTopicInfo(bootstrap_server()));
             }
             Key::Char('p') => {
+                sender.send(Message::DisplayUIMessage(DialogMessage::None));
                 sender.send(Message::TogglePartitionInfo(bootstrap_server(), consumer_group.clone()));
             }
             Key::Char('/') => {
