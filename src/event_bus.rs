@@ -9,6 +9,7 @@ use kafka_protocol::protocol_requests::*;
 use kafka_protocol::protocol_requests;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::*;
+use kafka_protocol::protocol_responses::findcoordinator_response::Coordinator;
 use state::*;
 use state::CurrentView;
 use std::cell::RefCell;
@@ -40,31 +41,35 @@ pub enum Deletion { Topic(String), Config(String) }
 
 pub enum Modification { Config(String) }
 
+pub enum MetadataPayload {
+    Metadata(metadata_response::MetadataResponse),
+    PartitionsMetadata(metadata_response::MetadataResponse, Vec<metadata_response::PartitionMetadata>, HashMap<i32, listoffsets_response::PartitionResponse>, Option<HashMap<i32, offsetfetch_response::PartitionResponse>>),
+    TopicInfoMetadata(metadata_response::MetadataResponse, describeconfigs_response::Resource),
+}
+
 pub enum Message {
     Quit,
     Noop,
+    GetMetadata(BootstrapServer, Option<ConsumerGroup>),
+    ToggleView(CurrentView),
     DisplayUIMessage(DialogMessage),
     UserInput(String),
-    GetTopics(BootstrapServer),
     Select(MoveSelection),
     SetTopicQuery(TopicQuery),
     Delete(BootstrapServer),
-    ToggleTopicInfo(BootstrapServer),
-    TogglePartitionInfo(BootstrapServer, Option<ConsumerGroup>),
     ModifyValue(BootstrapServer, Option<String>),
 }
 
 enum Event {
     Exiting,
     StateIdentity,
+    MetadataRetrieved(StateFn<MetadataPayload>),
+    ViewToggled(CurrentView),
     ShowUIMessage(DialogMessage),
     UserInputUpdated(String),
-    ListTopics(StateFn<metadata_response::MetadataResponse>),
     SelectionUpdated(StateFn<(CurrentView, usize)>),
     TopicQuerySet(Option<String>),
     ResourceDeleted(StateFn<Deletion>),
-    InfoToggled(StateFn<TopicInfoState>),
-    PartitionsToggled(StateFn<PartitionInfoState>),
     ValueModified(StateFn<Modification>),
 }
 
@@ -103,21 +108,43 @@ fn to_event(message: Message) -> Event {
         Noop => StateIdentity,
         DisplayUIMessage(message) => ShowUIMessage(message),
         UserInput(input) => UserInputUpdated(input),
-        GetTopics(BootstrapServer(bootstrap)) => {
-            ListTopics(Box::from(move |state: &State| {
-                let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
-                    tcp_stream_util::request(
-                        bootstrap.clone(),
-                        Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
-                    );
-                result
-                    .map(|response| {
-                        let mut metadata_response = response.response_message;
-                        // sort by topic names before returning
-                        metadata_response.topic_metadata.sort_by(|a, b| a.topic.cmp(&b.topic));
-                        metadata_response
-                    })
-                    .map_err(|err| StateFNError::caused("Error encountered trying to retrieve topics", err))
+        ToggleView(view) => ViewToggled(view),
+
+        GetMetadata(BootstrapServer(bootstrap), opt_consumer_group) => {
+            MetadataRetrieved(Box::from(move |state: &State| {
+                let metadata_response =
+                    retrieve_metadata(&bootstrap)
+                        .map_err(|err| StateFNError::caused("Error encountered trying to retrieve topics", err));
+
+                match state.current_view {
+                    CurrentView::Topics => metadata_response.map(|metadata_response| MetadataPayload::Metadata(metadata_response)),
+                    CurrentView::Partitions => {
+                        metadata_response.and_then(|metadata_response| {
+                            state.selected_topic_metadata().map(|topic_metadata| {
+                                retrieve_partition_metadata_and_offsets(&bootstrap, &metadata_response, &topic_metadata)
+                                    .and_then(|(partition_metadata, partition_offsets)| {
+                                        match opt_consumer_group {
+                                            None => Ok(MetadataPayload::PartitionsMetadata(metadata_response, partition_metadata, partition_offsets, None)),
+                                            Some(ConsumerGroup(ref group_id, ref coordinator)) => {
+                                                retrieve_consumer_offsets(group_id, coordinator, &topic_metadata).map(|consumer_offsets| {
+                                                    MetadataPayload::PartitionsMetadata(metadata_response, partition_metadata, partition_offsets, Some(consumer_offsets))
+                                                })
+                                            }
+                                        }
+                                    }).map_err(|err| StateFNError::caused("Error retrieving partition metadata", err))
+                            }).unwrap_or(Err(StateFNError::error("Could not find selected topic metadata")))
+                        })
+                    }
+                    CurrentView::TopicInfo => {
+                        metadata_response.and_then(|metadata_response| {
+                            state.selected_topic_name().map(|topic_name| {
+                                retrieve_topic_metadata(&bootstrap, &topic_name)
+                                    .map_err(|err| StateFNError::caused("Error retrieving topic config", err))
+                                    .map(|resource| MetadataPayload::TopicInfoMetadata(metadata_response, resource))
+                            }).unwrap_or(Err(StateFNError::error("No topic selected")))
+                        })
+                    }
+                }
             }))
         }
 
@@ -255,155 +282,6 @@ fn to_event(message: Message) -> Event {
             }))
         }
 
-        ToggleTopicInfo(BootstrapServer(bootstrap)) => {
-            InfoToggled(Box::from(move |state: &State| {
-                let resource = describeconfigs_request::Resource {
-                    resource_type: protocol_requests::ResourceTypes::Topic as i8,
-                    resource_name: state.selected_topic_name().expect("failure to get topic name"),
-                    config_names: None,
-                };
-                let result: Result<Response<describeconfigs_response::DescribeConfigsResponse>, TcpRequestError> =
-                    tcp_stream_util::request(
-                        bootstrap.clone(),
-                        Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
-                    );
-                result
-                    .map_err(|err| StateFNError::caused("DescribeConfigs request failed", err))
-                    .and_then(|response| {
-                        state.selected_topic_metadata().map(|topic_metadata| {
-                            let resource = response.response_message.resources
-                                .into_iter()
-                                .filter(|resource| resource.resource_name.eq(&state.selected_topic_name().unwrap()))
-                                .collect::<Vec<describeconfigs_response::Resource>>();
-
-                            match resource.first() {
-                                None => Err(StateFNError::caused("", TcpRequestError::from("API response missing topic resource info"))),
-                                Some(resource) => {
-                                    if resource.error_code == 0 {
-                                        Ok(TopicInfoState {
-                                            topic_metadata,
-                                            config_resource: resource.clone(),
-                                            selected_index: 0,
-                                            configs_marked_deleted: vec![],
-                                            configs_marked_modified: vec![],
-                                        })
-                                    } else {
-                                        let error_msg = resource.error_message.clone().unwrap_or(format!(""));
-                                        Err(StateFNError::Error(format!("Error describing config. {}", error_msg)))
-                                    }
-                                }
-                            }
-                        }).unwrap_or(Err(StateFNError::error("Could not select or find topic metadata")))
-                    })
-            }))
-        }
-
-        TogglePartitionInfo(BootstrapServer(bootstrap), opt_consumer_group) => {
-            PartitionsToggled(Box::from(move |state: &State| {
-                state.metadata.as_ref()
-                    .and_then(|metadata| metadata.topic_metadata.get(state.selected_index).map(|topic_metadata| (metadata, topic_metadata)))
-                    .map(|(metadata, topic_metadata): (&metadata_response::MetadataResponse, &metadata_response::TopicMetadata)| {
-                        let partition_metadata = &topic_metadata.partition_metadata;
-                        let broker_id_to_host_map =
-                            metadata.brokers.iter().map(|b| (b.node_id, format!("{}:{}", b.host, b.port))).collect::<HashMap<i32, String>>();
-
-                        let mut sorted_partition_metadata = partition_metadata.clone();
-                        sorted_partition_metadata.sort_by(|a, b| a.partition.cmp(&b.partition));
-
-                        let partitions_grouped_by_broker: HashMap<i32, Vec<i32>> =
-                            partition_metadata.iter().fold(HashMap::new(), |mut map, partition| {
-                                let mut partitions = map.get_mut(&partition.leader).map(|vec| vec.clone()).unwrap_or(vec![]);
-                                partitions.push(partition.partition);
-                                map.insert(partition.leader, partitions.clone());
-                                map
-                            });
-
-                        let partition_offset_requests =
-                            partitions_grouped_by_broker.iter().map(|(broker_id, partitions)| {
-                                (broker_id_to_host_map.get(broker_id).map(|s| s.clone()).unwrap_or(bootstrap.clone()),
-                                 listoffsets_request::Topic {
-                                     topic: topic_metadata.topic.clone(),
-                                     partitions: partitions.iter()
-                                         .map(|p| listoffsets_request::Partition { partition: *p, timestamp: -1 }).collect(),
-                                 })
-                            }).collect::<Vec<(String, listoffsets_request::Topic)>>();
-
-                        let partition_offset_responses =
-                            partition_offset_requests.into_iter().map(|(broker_address, topic)| {
-                                let listoffsets_response: Result<Response<listoffsets_response::ListOffsetsResponse>, TcpRequestError> =
-                                    tcp_stream_util::request(
-                                        broker_address,
-                                        Request::of(listoffsets_request::ListOffsetsRequest { replica_id: -1, isolation_level: 0, topics: vec![topic] }, 2, 2),
-                                    );
-                                listoffsets_response
-                                    .map_err(|err| StateFNError::caused("ListOffsets request failed", err))
-                                    .and_then(|response| {
-                                        match response.response_message.responses.first() {
-                                            Some(topic_offsets) => Ok(topic_offsets.partition_responses.clone()),
-                                            None => Err(StateFNError::error("ListOffsets API did not return any topic offsets"))
-                                        }
-                                    })
-                            }).collect::<Result<Vec<Vec<listoffsets_response::PartitionResponse>>, StateFNError>>()
-                                .map(|vecs| vecs.flatten());
-
-                        partition_offset_responses.and_then(|partition_offset_responses| {
-                            let partition_offsets =
-                                partition_offset_responses.into_iter().map(|partition_response| {
-                                    (partition_response.partition, partition_response)
-                                }).collect::<HashMap<i32, listoffsets_response::PartitionResponse>>();
-
-                            match opt_consumer_group {
-                                None => Ok(PartitionInfoState { selected_index: 0, partition_metadata: sorted_partition_metadata, partition_offsets, consumer_offsets: HashMap::new() }),
-                                Some(ConsumerGroup(ref group_id, ref coordinator)) => {
-                                    let topic =
-                                        offsetfetch_request::Topic {
-                                            topic: topic_metadata.topic.clone(),
-                                            partitions: topic_metadata.partition_metadata.iter().map(|p| p.partition).collect(),
-                                        };
-
-                                    let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
-                                        tcp_stream_util::request(
-                                            format!("{}:{}", coordinator.host, coordinator.port),
-                                            Request::of(
-                                                offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] },
-                                                9,
-                                                3,
-                                            ),
-                                        ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
-                                            if result.response_message.error_code != 0 {
-                                                Err(TcpRequestError::of(format!("Error code {} with OffsetFetchRequest", result.response_message.error_code)))
-                                            } else {
-                                                Ok(result)
-                                            }
-                                        });
-
-                                    let partition_responses =
-                                        offsetfetch_result.and_then(|result| {
-                                            let responses = result.response_message.responses
-                                                .into_iter()
-                                                .find(|response| response.topic.eq(&topic.topic))
-                                                .map(|response| response.partition_responses);
-                                            match responses {
-                                                None => Err(TcpRequestError::from("Topic not returned from API request")),
-                                                Some(partition_responses) => Ok(partition_responses)
-                                            }
-                                        });
-
-                                    partition_responses
-                                        .map(|partition_responses| {
-                                            partition_responses.into_iter().map(|p| (p.partition, p)).collect::<HashMap<i32, offsetfetch_response::PartitionResponse>>()
-                                        })
-                                        .map(|consumer_offsets| {
-                                            PartitionInfoState { selected_index: 0, partition_metadata: sorted_partition_metadata, partition_offsets, consumer_offsets }
-                                        })
-                                        .map_err(|err| StateFNError::caused("Error encountered trying to retrieve partition offsets", err))
-                                }
-                            }
-                        })
-                    }).unwrap_or(Err(StateFNError::error("Could not select or find partition metadata")))
-            }))
-        }
-
         ModifyValue(BootstrapServer(bootstrap), new_value) => {
             ValueModified(Box::from(move |state: &State| {
                 match state.current_view {
@@ -461,13 +339,52 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             }
             Ok(current_state.clone())
         }
-        ListTopics(get_metadata) => {
-            get_metadata(&current_state).map(|response: metadata_response::MetadataResponse| {
-                current_state.metadata = Some(response);
-                current_state.marked_deleted = vec![];
-                current_state.current_view = CurrentView::Topics;
-                current_state.clone()
+        MetadataRetrieved(payload_fn) => {
+            payload_fn(&current_state).and_then(|payload: MetadataPayload| {
+                match payload {
+                    MetadataPayload::Metadata(metadata_response) => {
+                        let mut state = State::new();
+                        state.current_view = CurrentView::Topics;
+                        state.selected_index = current_state.selected_index;
+                        state.metadata = Some(metadata_response);
+                        Ok(state)
+                    }
+                    MetadataPayload::PartitionsMetadata(metadata_response, partition_metadata, partition_offsets, consumer_offsets) => {
+                        current_state.metadata = Some(metadata_response);
+                        current_state.partition_info_state =
+                            Some(PartitionInfoState::new(partition_metadata, partition_offsets, consumer_offsets.unwrap_or(HashMap::new())));
+                        Ok(current_state.clone())
+                    }
+                    MetadataPayload::TopicInfoMetadata(metadata_response, config_resources) => {
+                        current_state.metadata = Some(metadata_response);
+                        current_state.topic_info_state =
+                            current_state.selected_topic_metadata().map(|topic_metadata| {
+                                TopicInfoState::new(topic_metadata, config_resources)
+                            });
+                        Ok(current_state.clone())
+                    }
+                }
             })
+        }
+        ViewToggled(view) => {
+            let new_view =
+                match view {
+                    CurrentView::Topics => CurrentView::Topics,
+                    CurrentView::Partitions => {
+                        match current_state.current_view {
+                            CurrentView::Partitions => CurrentView::Topics,
+                            _ => CurrentView::Partitions
+                        }
+                    }
+                    CurrentView::TopicInfo => {
+                        match current_state.current_view {
+                            CurrentView::TopicInfo => CurrentView::Topics,
+                            _ => CurrentView::TopicInfo
+                        }
+                    }
+                };
+            current_state.current_view = new_view;
+            Ok(current_state.clone())
         }
         SelectionUpdated(select_fn) => {
             match select_fn(&current_state) {
@@ -514,40 +431,6 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
                 }
             })
         }
-        InfoToggled(topic_info_fn) => {
-            match current_state.current_view {
-                CurrentView::Topics => {
-                    topic_info_fn(&current_state).map(|topic_info_state: TopicInfoState| {
-                        current_state.topic_info_state = Some(topic_info_state);
-                        current_state.current_view = CurrentView::TopicInfo;
-                        current_state.clone()
-                    })
-                }
-                CurrentView::TopicInfo => {
-                    current_state.topic_info_state = None;
-                    current_state.current_view = CurrentView::Topics;
-                    Ok(current_state.clone())
-                }
-                _ => Ok(current_state.clone())
-            }
-        }
-        PartitionsToggled(partition_info_fn) => {
-            match current_state.current_view {
-                CurrentView::Topics => {
-                    partition_info_fn(&current_state).map(|partition_info_state: PartitionInfoState| {
-                        current_state.partition_info_state = Some(partition_info_state);
-                        current_state.current_view = CurrentView::Partitions;
-                        current_state.clone()
-                    })
-                }
-                CurrentView::Partitions => {
-                    current_state.partition_info_state = None;
-                    current_state.current_view = CurrentView::Topics;
-                    Ok(current_state.clone())
-                }
-                _ => Ok(current_state.clone())
-            }
-        }
         ValueModified(modify_fn) => {
             modify_fn(&current_state).map(|modification: Modification| {
                 let current_topic_info_state = current_state.topic_info_state.clone();
@@ -563,3 +446,150 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
     }
 }
 
+fn retrieve_metadata(bootstrap: &String) -> Result<metadata_response::MetadataResponse, TcpRequestError> {
+    let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
+        tcp_stream_util::request(
+            bootstrap.clone(),
+            Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
+        );
+    result
+        .map(|response| {
+            let mut metadata_response = response.response_message;
+            // sort by topic names before returning
+            metadata_response.topic_metadata.sort_by(|a, b| a.topic.cmp(&b.topic));
+            metadata_response
+        })
+}
+
+fn retrieve_topic_metadata(bootstrap: &String, topic_name: &String) -> Result<describeconfigs_response::Resource, TcpRequestError> {
+    let resource = describeconfigs_request::Resource {
+        resource_type: protocol_requests::ResourceTypes::Topic as i8,
+        resource_name: topic_name.clone(),
+        config_names: None,
+    };
+    let result: Result<Response<describeconfigs_response::DescribeConfigsResponse>, TcpRequestError> =
+        tcp_stream_util::request(
+            bootstrap,
+            Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
+        );
+    result
+        .and_then(|response| {
+            let resource = response.response_message.resources
+                .into_iter()
+                .filter(|resource| resource.resource_name.eq(topic_name))
+                .collect::<Vec<describeconfigs_response::Resource>>();
+
+            match resource.first() {
+                None => Err(TcpRequestError::from("API response missing topic resource info")),
+                Some(resource) => {
+                    if resource.error_code == 0 {
+                        Ok(resource.clone())
+                    } else {
+                        let error_msg = resource.error_message.clone().unwrap_or(format!(""));
+                        Err(TcpRequestError::of(format!("Error describing config. {}", error_msg)))
+                    }
+                }
+            }
+        })
+}
+
+fn retrieve_partition_metadata_and_offsets(bootstrap: &String, metadata_response: &metadata_response::MetadataResponse, topic_metadata: &metadata_response::TopicMetadata) ->
+Result<(Vec<metadata_response::PartitionMetadata>, HashMap<i32, listoffsets_response::PartitionResponse>), TcpRequestError> {
+    let partition_metadata = &topic_metadata.partition_metadata;
+    let broker_id_to_host_map =
+        metadata_response.brokers.iter().map(|b| (b.node_id, format!("{}:{}", b.host, b.port))).collect::<HashMap<i32, String>>();
+
+    let mut sorted_partition_metadata = partition_metadata.clone();
+    sorted_partition_metadata.sort_by(|a, b| a.partition.cmp(&b.partition));
+
+    let partitions_grouped_by_broker: HashMap<i32, Vec<i32>> =
+        partition_metadata.iter().fold(HashMap::new(), |mut map, partition| {
+            let mut partitions = map.get_mut(&partition.leader).map(|vec| vec.clone()).unwrap_or(vec![]);
+            partitions.push(partition.partition);
+            map.insert(partition.leader, partitions.clone());
+            map
+        });
+
+    let partition_offset_requests =
+        partitions_grouped_by_broker.iter().map(|(broker_id, partitions)| {
+            (broker_id_to_host_map.get(broker_id).map(|s| s.clone()).unwrap_or(bootstrap.clone()),
+             listoffsets_request::Topic {
+                 topic: topic_metadata.topic.clone(),
+                 partitions: partitions.iter()
+                     .map(|p| listoffsets_request::Partition { partition: *p, timestamp: -1 }).collect(),
+             })
+        }).collect::<Vec<(String, listoffsets_request::Topic)>>();
+
+    let partition_offset_responses =
+        partition_offset_requests.into_iter().map(|(broker_address, topic)| {
+            let listoffsets_response: Result<Response<listoffsets_response::ListOffsetsResponse>, TcpRequestError> =
+                tcp_stream_util::request(
+                    broker_address,
+                    Request::of(
+                        listoffsets_request::ListOffsetsRequest { replica_id: -1, isolation_level: 0, topics: vec![topic] },
+                        2,
+                        2,
+                    ),
+                );
+            listoffsets_response
+                .and_then(|response| {
+                    match response.response_message.responses.first() {
+                        Some(topic_offsets) => Ok(topic_offsets.partition_responses.clone()),
+                        None => Err(TcpRequestError::from("ListOffsets API did not return any topic offsets"))
+                    }
+                })
+        }).collect::<Result<Vec<Vec<listoffsets_response::PartitionResponse>>, TcpRequestError>>()
+            .map(|vecs| vecs.flatten());
+
+    let partition_offsets =
+        partition_offset_responses.map(|partition_offset_responses| {
+            partition_offset_responses.into_iter().map(|partition_response| {
+                (partition_response.partition, partition_response)
+            }).collect::<HashMap<i32, listoffsets_response::PartitionResponse>>()
+        });
+
+    partition_offsets.map(|offsets| {
+        (sorted_partition_metadata, offsets)
+    })
+}
+
+fn retrieve_consumer_offsets(group_id: &String, coordinator: &Coordinator, topic_metadata: &metadata_response::TopicMetadata) -> Result<HashMap<i32, offsetfetch_response::PartitionResponse>, TcpRequestError> {
+    let topic =
+        offsetfetch_request::Topic {
+            topic: topic_metadata.topic.clone(),
+            partitions: topic_metadata.partition_metadata.iter().map(|p| p.partition).collect(),
+        };
+
+    let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
+        tcp_stream_util::request(
+            format!("{}:{}", coordinator.host, coordinator.port),
+            Request::of(
+                offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] },
+                9,
+                3,
+            ),
+        ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
+            if result.response_message.error_code != 0 {
+                Err(TcpRequestError::of(format!("Error code {} with OffsetFetchRequest", result.response_message.error_code)))
+            } else {
+                Ok(result)
+            }
+        });
+
+    let partition_responses =
+        offsetfetch_result.and_then(|result| {
+            let responses = result.response_message.responses
+                .into_iter()
+                .find(|response| response.topic.eq(&topic.topic))
+                .map(|response| response.partition_responses);
+            match responses {
+                None => Err(TcpRequestError::from("Topic not returned from API request")),
+                Some(partition_responses) => Ok(partition_responses)
+            }
+        });
+
+    partition_responses
+        .map(|partition_responses| {
+            partition_responses.into_iter().map(|p| (p.partition, p)).collect::<HashMap<i32, offsetfetch_response::PartitionResponse>>()
+        })
+}

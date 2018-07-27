@@ -104,10 +104,23 @@ pub struct TopicInfoState {
     pub configs_marked_modified: Vec<String>,
 }
 
+impl TopicInfoState {
+    pub fn new(topic_metadata: TopicMetadata, config_resource: Resource) -> TopicInfoState {
+        TopicInfoState { topic_metadata, config_resource, selected_index: 0, configs_marked_deleted: vec![], configs_marked_modified: vec![] }
+    }
+}
+
 #[derive(Clone)]
 pub struct PartitionInfoState {
     pub selected_index: usize,
     pub partition_metadata: Vec<PartitionMetadata>,
     pub partition_offsets: HashMap<i32, listoffsets_response::PartitionResponse>,
     pub consumer_offsets: HashMap<i32, offsetfetch_response::PartitionResponse>,
+}
+
+impl PartitionInfoState {
+    pub fn new(partition_metadata: Vec<PartitionMetadata>, partition_offsets: HashMap<i32, listoffsets_response::PartitionResponse>, consumer_offsets: HashMap<i32, offsetfetch_response::PartitionResponse>)
+               -> PartitionInfoState {
+        PartitionInfoState { selected_index: 0, partition_metadata, partition_offsets, consumer_offsets }
+    }
 }

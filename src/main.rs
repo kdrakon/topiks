@@ -22,6 +22,7 @@ use kafka_protocol::protocol_responses::findcoordinator_response::FindCoordinato
 use kafka_protocol::protocol_responses::metadata_response::*;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
 use kafka_protocol::protocol_serializable::*;
+use state::CurrentView;
 use state::DialogMessage;
 use std::env;
 use std::io;
@@ -97,7 +98,7 @@ fn main() {
         })
     });
 
-    sender.send(Message::GetTopics(bootstrap_server()));
+    sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
 
     for key in stdin.keys() {
         match key.unwrap() {
@@ -112,7 +113,7 @@ fn main() {
             }
             Key::Char('r') => {
                 sender.send(Message::DisplayUIMessage(DialogMessage::None));
-                sender.send(Message::GetTopics(bootstrap_server()));
+                sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
             }
             Key::Char('d') => {
                 if app_config.deletion_allowed {
@@ -149,11 +150,13 @@ fn main() {
             }
             Key::Char('i') => {
                 sender.send(Message::DisplayUIMessage(DialogMessage::None));
-                sender.send(Message::ToggleTopicInfo(bootstrap_server()));
+                sender.send(Message::ToggleView(CurrentView::TopicInfo));
+                sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
             }
             Key::Char('p') => {
                 sender.send(Message::DisplayUIMessage(DialogMessage::None));
-                sender.send(Message::TogglePartitionInfo(bootstrap_server(), consumer_group.clone()));
+                sender.send(Message::ToggleView(CurrentView::Partitions));
+                sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
             }
             Key::Char('/') => {
                 sender.send(Message::DisplayUIMessage(DialogMessage::Info(format!("Search"))));
