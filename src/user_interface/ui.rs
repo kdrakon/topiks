@@ -28,6 +28,7 @@ use user_interface::selectable_list::TopicListItem;
 use util::paged_vec::PagedVec;
 use util::utils;
 use util::utils::pad_right;
+use kafka_protocol::protocol_responses::describeconfigs_response::ConfigSource;
 
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -139,8 +140,7 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
             indexed.iter().map(|&(config_entry, index)| {
                 let item = Config { name: pad_right(&config_entry.config_name, longest_config_name_len), value: config_entry.config_value.clone() };
                 let item = if page_index == index { Selected(Box::from(item)) } else { item };
-                let item = if config_entry.read_only { ReadOnlyConfig(Box::from(item)) } else { item };
-                let item = if config_entry.is_sensitive { SensitiveConfig(Box::from(item)) } else { item };
+                let item = if config_entry.config_source == ConfigSource::TopicConfig as i8 { Override(Box::from(item)) } else { item };
                 let item = if topic_info.configs_marked_deleted.contains(&config_entry.config_name) { Deleted(Box::from(item)) } else { item };
                 let item = if topic_info.configs_marked_modified.contains(&config_entry.config_name) { Modified(Box::from(item)) } else { item };
                 item

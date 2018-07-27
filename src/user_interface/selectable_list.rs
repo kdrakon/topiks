@@ -74,13 +74,10 @@ impl SelectableListItem for PartitionListItem {
 
 pub enum TopicConfigurationItem {
     Config { name: String, value: Option<String> },
-    NewConfig { name: String, value: Option<String> },
     Selected(Box<TopicConfigurationItem>),
-    ReadOnlyConfig(Box<TopicConfigurationItem>),
-    SensitiveConfig(Box<TopicConfigurationItem>),
+    Override(Box<TopicConfigurationItem>),
     Deleted(Box<TopicConfigurationItem>),
     Modified(Box<TopicConfigurationItem>),
-
 }
 
 impl SelectableListItem for TopicConfigurationItem {
@@ -88,12 +85,10 @@ impl SelectableListItem for TopicConfigurationItem {
         use self::TopicConfigurationItem::*;
         match &self {
             Config { name, value } => format!("{}: {}", name, value.as_ref().unwrap_or(&format!(""))),
-            NewConfig { name, value } => format!("{}{}: {}", color::Fg(color::LightRed),  name, value.as_ref().unwrap_or(&format!(""))),
             Selected(config) => format!("{}{}", color::Bg(color::LightBlack), config.display()),
-            ReadOnlyConfig(config) => format!("{}{}", color::Fg(color::LightMagenta), config.display()),
-            SensitiveConfig(config) => format!("{}{}", color::Fg(color::LightRed), config.display()),
-            Deleted(config) => format!("{}{}", color::Fg(color::Red), config.display()),
-            Modified(config) => format!("{}{}", color::Fg(color::Yellow), config.display()),
+            Override(config) => format!("{}{}", color::Fg(color::LightMagenta), config.display()),
+            Deleted(config) => format!("{}{}", color::Bg(color::LightRed), config.display()),
+            Modified(config) => format!("{}{}", color::Bg(color::Yellow), config.display()),
         }
     }
 }
