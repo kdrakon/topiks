@@ -194,26 +194,30 @@ fn to_event(message: Message) -> Event {
                     CurrentView::Topics => {
                         state.metadata.as_ref().map(|metadata| {
                             metadata.topic_metadata.get(state.selected_index).map(|delete_topic_metadata: &metadata_response::TopicMetadata| {
-                                let delete_topic_name = delete_topic_metadata.topic.clone();
-                                let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
-                                    tcp_stream_util::request(
-                                        bootstrap.clone(),
-                                        Request::of(
-                                            deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 },
-                                            20,
-                                            1),
-                                    );
-                                match result {
-                                    Ok(response) => {
-                                        let map =
-                                            response.response_message.topic_error_codes.iter().map(|err| (&err.topic, err.error_code)).collect::<HashMap<&String, i16>>();
-                                        if map.values().all(|err_code| *err_code == 0) {
-                                            Ok(Deletion::Topic(delete_topic_name))
-                                        } else {
-                                            Err(StateFNError::caused("Failed to delete topic", TcpRequestError::of(format!("Non-zero topic error code encountered: {:?}", map))))
+                                if delete_topic_metadata.is_internal {
+                                    Err(StateFNError::error("Can not delete internal topics"))
+                                } else {
+                                    let delete_topic_name = delete_topic_metadata.topic.clone();
+                                    let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
+                                        tcp_stream_util::request(
+                                            bootstrap.clone(),
+                                            Request::of(
+                                                deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 },
+                                                20,
+                                                1),
+                                        );
+                                    match result {
+                                        Ok(response) => {
+                                            let map =
+                                                response.response_message.topic_error_codes.iter().map(|err| (&err.topic, err.error_code)).collect::<HashMap<&String, i16>>();
+                                            if map.values().all(|err_code| *err_code == 0) {
+                                                Ok(Deletion::Topic(delete_topic_name))
+                                            } else {
+                                                Err(StateFNError::caused("Failed to delete topic", TcpRequestError::of(format!("Non-zero topic error code encountered: {:?}", map))))
+                                            }
                                         }
+                                        Err(err) => Err(StateFNError::caused("Failed to delete topic", err))
                                     }
-                                    Err(err) => Err(StateFNError::caused("Failed to delete topic", err))
                                 }
                             }).unwrap_or(Err(StateFNError::error("Could not select or find topic to delete")))
                         }).unwrap_or(Err(StateFNError::error("Topic metadata not available")))
