@@ -56,7 +56,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let matches = App::new("topiks")
-        .version("1.1.0")
+        .version("0.1.0")
         .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
         .arg(Arg::with_name("consumer-group").long("consumer-group").short("c").takes_value(true).help("Consumer group for fetching offsets"))
         .arg(Arg::with_name("delete").short("D").help("Enable topic/config deletion"))

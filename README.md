@@ -23,8 +23,9 @@ USAGE:
     topiks [FLAGS] [OPTIONS] <bootstrap-server>
 
 FLAGS:
-    -D                              Enable topic deletion
+    -D                              Enable topic/config deletion
     -h, --help                      Prints help information
+    -M                              Enable modification of topic configurations and other resources
         --no-delete-confirmation    Disable delete confirmation <Danger!>
     -V, --version                   Prints version information
 
