@@ -36,6 +36,7 @@ use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
 use util::tcp_stream_util::TcpRequestError;
+use kafka_protocol::api_verification::ApiVersionQuery;
 
 pub mod util;
 pub mod kafka_protocol;
@@ -73,7 +74,7 @@ fn main() -> Result<(), u8> {
         modification_enabled: matches.is_present("modify"),
     };
 
-    if let Err(err) = kafka_protocol::api_verification::apply(app_config.bootstrap_server) {
+    if let Err(err) = kafka_protocol::api_verification::apply(app_config.bootstrap_server, &vec![ApiVersionQuery(99, 99)]) {
         Err(127)
     } else {
         let sender = event_bus::start();
