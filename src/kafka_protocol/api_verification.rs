@@ -2,22 +2,33 @@ use kafka_protocol::api_verification::ApiVerificationFailure::ApiNotSupported;
 use kafka_protocol::api_verification::ApiVerificationFailure::ApiVersionNotSupported;
 use kafka_protocol::api_verification::ApiVerificationFailure::NoVerification;
 use kafka_protocol::protocol_request::Request;
+use kafka_protocol::protocol_requests::alterconfigs_request::AlterConfigsRequest;
+use kafka_protocol::protocol_requests::deletetopics_request::DeleteTopicsRequest;
+use kafka_protocol::protocol_requests::describeconfigs_request::DescribeConfigsRequest;
+use kafka_protocol::protocol_requests::findcoordinator_request::FindCoordinatorRequest;
+use kafka_protocol::protocol_requests::listoffsets_request::ListOffsetsRequest;
+use kafka_protocol::protocol_requests::metadata_request::MetadataRequest;
+use kafka_protocol::protocol_requests::offsetfetch_request::OffsetFetchRequest;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_serializable::*;
 use util;
 use util::tcp_stream_util::TcpRequestError;
 use util::utils;
 
+#[derive(Debug)]
 pub enum ApiVerificationFailure {
     NoVerification(String),
     ApiNotSupported(i16),
     ApiVersionNotSupported(i16, i16),
 }
 
-/// Version 2
-///
 #[derive(Clone)]
 pub struct ApiVersionsRequest {}
+
+impl KafkaApiVersioned for ApiVersionsRequest {
+    fn api_key() -> i16 { 18 }
+    fn version() -> i16 { 0 }
+}
 
 impl ProtocolSerializable for ApiVersionsRequest {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
@@ -25,13 +36,10 @@ impl ProtocolSerializable for ApiVersionsRequest {
     }
 }
 
-/// Version 2
-///
 #[derive(Debug)]
 pub struct ApiVersionResponse {
     pub error_code: i16,
     pub api_versions: Vec<ApiVersion>,
-    pub throttle_time_ms: i32,
 }
 
 #[derive(Debug)]
@@ -61,14 +69,11 @@ impl ProtocolDeserializable<ApiVersionResponse> for Vec<u8> {
         }
 
         de_i16(self[0..=1].to_vec()).and_then(|error_code| {
-            de_array(self[2..].to_vec(), deserialize_api_version).and_then(|(api_versions, bytes)| {
-                de_i32(bytes[0..=3].to_vec()).map(|throttle_time_ms| {
-                    ApiVersionResponse {
-                        error_code,
-                        api_versions,
-                        throttle_time_ms,
-                    }
-                })
+            de_array(self[2..].to_vec(), deserialize_api_version).map(|(api_versions, bytes)| {
+                ApiVersionResponse {
+                    error_code,
+                    api_versions,
+                }
             })
         })
     }
@@ -80,7 +85,7 @@ pub fn apply(bootstrap_server: &str, queries: &Vec<ApiVersionQuery>) -> Result<(
     let result: Result<Response<ApiVersionResponse>, TcpRequestError> =
         util::tcp_stream_util::request(
             bootstrap_server.clone(),
-            Request::of(ApiVersionsRequest {}, 18, 2),
+            Request::of(ApiVersionsRequest {}),
         );
 
     let verification =
@@ -117,4 +122,21 @@ pub fn apply(bootstrap_server: &str, queries: &Vec<ApiVersionQuery>) -> Result<(
         }
         Err(err) => Err(vec![NoVerification(err.error)])
     }
+}
+
+pub trait KafkaApiVersioned {
+    fn api_key() -> i16;
+    fn version() -> i16;
+}
+
+pub fn apis_in_use() -> Vec<ApiVersionQuery> {
+    vec![
+        ApiVersionQuery(AlterConfigsRequest::api_key(), AlterConfigsRequest::version()),
+        ApiVersionQuery(DeleteTopicsRequest::api_key(), DeleteTopicsRequest::version()),
+        ApiVersionQuery(DescribeConfigsRequest::api_key(), DescribeConfigsRequest::version()),
+        ApiVersionQuery(FindCoordinatorRequest::api_key(), FindCoordinatorRequest::version()),
+        ApiVersionQuery(ListOffsetsRequest::api_key(), ListOffsetsRequest::version()),
+        ApiVersionQuery(MetadataRequest::api_key(), MetadataRequest::version()),
+        ApiVersionQuery(OffsetFetchRequest::api_key(), OffsetFetchRequest::version()),
+    ]
 }
