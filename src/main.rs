@@ -36,6 +36,7 @@ use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
 use util::tcp_stream_util::TcpRequestError;
+use kafka_protocol::api_verification::ApiVersionQuery;
 
 pub mod util;
 pub mod kafka_protocol;
@@ -52,7 +53,7 @@ struct AppConfig<'a> {
     modification_enabled: bool,
 }
 
-fn main() {
+fn main() -> Result<(), u8> {
     let args: Vec<String> = env::args().collect();
 
     let matches = App::new("topiks")
@@ -73,118 +74,123 @@ fn main() {
         modification_enabled: matches.is_present("modify"),
     };
 
-    let sender = event_bus::start();
-    let stdout = &mut AlternateScreen::from(std::io::stdout().into_raw_mode().unwrap()); // raw mode to avoid screen output
-    let stdin = stdin();
+    if let Err(err) = kafka_protocol::api_verification::apply(app_config.bootstrap_server, &kafka_protocol::api_verification::apis_in_use()) {
+        eprintln!("Kafka Protocol API Error(s): {:?}", err);
+        Err(127)
+    } else {
+        let sender = event_bus::start();
+        let stdout = &mut AlternateScreen::from(std::io::stdout().into_raw_mode().unwrap()); // raw mode to avoid screen output
+        let stdin = stdin();
 
-    let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
+        let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
 
-    let consumer_group = app_config.consumer_group.clone().and_then(|cg| {
-        let find_coordinator_response: Result<Response<FindCoordinatorResponse>, TcpRequestError> =
-            util::tcp_stream_util::request(app_config.bootstrap_server,
-                                           Request::of(
-                                               FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 },
-                                               10,
-                                               1,
-                                           ),
-            );
-        find_coordinator_response.ok().and_then(|find_coordinator_response| {
-            if find_coordinator_response.response_message.error_code == 0 {
-                Some(ConsumerGroup(String::from(cg), find_coordinator_response.response_message.coordinator))
-            } else {
-                sender.send(Message::DisplayUIMessage(DialogMessage::Error(format!("Could not determine coordinator for consumer group {}", cg))));
-                None
-            }
-        })
-    });
+        let consumer_group = app_config.consumer_group.clone().and_then(|cg| {
+            let find_coordinator_response: Result<Response<FindCoordinatorResponse>, TcpRequestError> =
+                util::tcp_stream_util::request(app_config.bootstrap_server,
+                                               Request::of(
+                                                   FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 }
+                                               ),
+                );
+            find_coordinator_response.ok().and_then(|find_coordinator_response| {
+                if find_coordinator_response.response_message.error_code == 0 {
+                    Some(ConsumerGroup(String::from(cg), find_coordinator_response.response_message.coordinator))
+                } else {
+                    sender.send(Message::DisplayUIMessage(DialogMessage::Error(format!("Could not determine coordinator for consumer group {}", cg))));
+                    None
+                }
+            })
+        });
 
-    sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
+        sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
 
-    for key in stdin.keys() {
-        match key.unwrap() {
-            Key::Char('q') => {
-                match sender.send(Message::Quit) {
-                    Ok(_) => break,
-                    Err(_) => {
-                        eprintln!("Failed to signal event bus/user interface thread. Exiting now");
-                        break;
+        for key in stdin.keys() {
+            match key.unwrap() {
+                Key::Char('q') => {
+                    match sender.send(Message::Quit) {
+                        Ok(_) => break,
+                        Err(_) => {
+                            eprintln!("Failed to signal event bus/user interface thread. Exiting now");
+                            break;
+                        }
                     }
                 }
-            }
-            Key::Char('r') => {
-                sender.send(Message::DisplayUIMessage(DialogMessage::None));
-                sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
-            }
-            Key::Char('d') => {
-                if app_config.deletion_allowed {
-                    sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!("Deleting..."))));
-                    if app_config.deletion_confirmation {
-                        let (width, height) = terminal_size().unwrap();
-                        match user_input::read("[Yes]?: ", (1, height), sender.clone()) {
-                            Ok(Some(confirm)) => {
-                                if confirm.eq("Yes") {
-                                    sender.send(Message::Delete(bootstrap_server()));
-                                } else {
-                                    sender.send(Message::Noop);
+                Key::Char('r') => {
+                    sender.send(Message::DisplayUIMessage(DialogMessage::None));
+                    sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
+                }
+                Key::Char('d') => {
+                    if app_config.deletion_allowed {
+                        sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!("Deleting..."))));
+                        if app_config.deletion_confirmation {
+                            let (width, height) = terminal_size().unwrap();
+                            match user_input::read("[Yes]?: ", (1, height), sender.clone()) {
+                                Ok(Some(confirm)) => {
+                                    if confirm.eq("Yes") {
+                                        sender.send(Message::Delete(bootstrap_server()));
+                                    } else {
+                                        sender.send(Message::Noop);
+                                    }
                                 }
+                                _ => ()
+                            }
+                        } else {
+                            sender.send(Message::Delete(bootstrap_server()));
+                        }
+                        sender.send(Message::DisplayUIMessage(DialogMessage::None));
+                    }
+                }
+                Key::Up => {
+                    sender.send(Message::Select(Up));
+                }
+                Key::Down => {
+                    sender.send(Message::Select(Down));
+                }
+                Key::Home => {
+                    sender.send(Message::Select(Top));
+                }
+                Key::End => {
+                    sender.send(Message::Select(Bottom));
+                }
+                Key::Char('i') => {
+                    sender.send(Message::DisplayUIMessage(DialogMessage::None));
+                    sender.send(Message::ToggleView(CurrentView::TopicInfo));
+                    sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
+                }
+                Key::Char('p') => {
+                    sender.send(Message::DisplayUIMessage(DialogMessage::None));
+                    sender.send(Message::ToggleView(CurrentView::Partitions));
+                    sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
+                }
+                Key::Char('/') => {
+                    sender.send(Message::DisplayUIMessage(DialogMessage::Info(format!("Search"))));
+                    let (width, height) = terminal_size().unwrap();
+                    let query = match user_input::read("/", (1, height), sender.clone()) {
+                        Ok(Some(query)) => Message::SetTopicQuery(Query(query)),
+                        Ok(None) => Message::SetTopicQuery(NoQuery),
+                        Err(_) => Message::SetTopicQuery(NoQuery)
+                    };
+                    sender.send(query);
+                    sender.send(Message::Select(SearchNext));
+                    sender.send(Message::DisplayUIMessage(DialogMessage::None));
+                }
+                Key::Char('n') => { // TODO support Shift+n for reverse
+                    sender.send(Message::Select(SearchNext));
+                }
+                Key::Char('\n') => {
+                    if app_config.modification_enabled {
+                        let (width, height) = terminal_size().unwrap();
+                        match user_input::read(":", (1, height), sender.clone()) {
+                            Ok(modify_value) => {
+                                sender.send(Message::ModifyValue(bootstrap_server(), modify_value));
                             }
                             _ => ()
                         }
-                    } else {
-                        sender.send(Message::Delete(bootstrap_server()));
-                    }
-                    sender.send(Message::DisplayUIMessage(DialogMessage::None));
-                }
-            }
-            Key::Up => {
-                sender.send(Message::Select(Up));
-            }
-            Key::Down => {
-                sender.send(Message::Select(Down));
-            }
-            Key::Home => {
-                sender.send(Message::Select(Top));
-            }
-            Key::End => {
-                sender.send(Message::Select(Bottom));
-            }
-            Key::Char('i') => {
-                sender.send(Message::DisplayUIMessage(DialogMessage::None));
-                sender.send(Message::ToggleView(CurrentView::TopicInfo));
-                sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
-            }
-            Key::Char('p') => {
-                sender.send(Message::DisplayUIMessage(DialogMessage::None));
-                sender.send(Message::ToggleView(CurrentView::Partitions));
-                sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone()));
-            }
-            Key::Char('/') => {
-                sender.send(Message::DisplayUIMessage(DialogMessage::Info(format!("Search"))));
-                let (width, height) = terminal_size().unwrap();
-                let query = match user_input::read("/", (1, height), sender.clone()) {
-                    Ok(Some(query)) => Message::SetTopicQuery(Query(query)),
-                    Ok(None) => Message::SetTopicQuery(NoQuery),
-                    Err(_) => Message::SetTopicQuery(NoQuery)
-                };
-                sender.send(query);
-                sender.send(Message::Select(SearchNext));
-                sender.send(Message::DisplayUIMessage(DialogMessage::None));
-            }
-            Key::Char('n') => { // TODO support Shift+n for reverse
-                sender.send(Message::Select(SearchNext));
-            }
-            Key::Char('\n') => {
-                if app_config.modification_enabled {
-                    let (width, height) = terminal_size().unwrap();
-                    match user_input::read(":", (1, height), sender.clone()) {
-                        Ok(modify_value) => {
-                            sender.send(Message::ModifyValue(bootstrap_server(), modify_value));
-                        }
-                        _ => ()
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
+
+        Ok(())
     }
 }

@@ -1,13 +1,19 @@
+use kafka_protocol::api_verification::KafkaApiVersioned;
 use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
+use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_serializable::*;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
-use kafka_protocol::protocol_request::*;
 
 #[derive(Clone)]
 pub struct MetadataRequest {
     pub topics: Option<Vec<String>>,
     pub allow_auto_topic_creation: bool
+}
+
+impl KafkaApiVersioned for MetadataRequest {
+    fn api_key() -> i16 { 3 }
+    fn version() -> i16 { 5 }
 }
 
 impl ProtocolSerializable for MetadataRequest {
@@ -25,8 +31,8 @@ impl ProtocolSerializable for MetadataRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use kafka_protocol::protocol_request::*;
+    use super::*;
 
     #[test]
     fn verify_request() {
