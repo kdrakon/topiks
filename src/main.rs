@@ -74,7 +74,8 @@ fn main() -> Result<(), u8> {
         modification_enabled: matches.is_present("modify"),
     };
 
-    if let Err(err) = kafka_protocol::api_verification::apply(app_config.bootstrap_server, &vec![ApiVersionQuery(99, 99)]) {
+    if let Err(err) = kafka_protocol::api_verification::apply(app_config.bootstrap_server, &kafka_protocol::api_verification::apis_in_use()) {
+        eprintln!("Kafka Protocol API Error(s): {:?}", err);
         Err(127)
     } else {
         let sender = event_bus::start();
@@ -87,9 +88,7 @@ fn main() -> Result<(), u8> {
             let find_coordinator_response: Result<Response<FindCoordinatorResponse>, TcpRequestError> =
                 util::tcp_stream_util::request(app_config.bootstrap_server,
                                                Request::of(
-                                                   FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 },
-                                                   10,
-                                                   1,
+                                                   FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 }
                                                ),
                 );
             find_coordinator_response.ok().and_then(|find_coordinator_response| {

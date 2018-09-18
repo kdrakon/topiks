@@ -1,3 +1,4 @@
+use kafka_protocol::api_verification::KafkaApiVersioned;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives;
 use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
@@ -13,6 +14,11 @@ pub struct Resource {
     pub resource_type: i8,
     pub resource_name: String,
     pub config_names: Option<Vec<String>>
+}
+
+impl KafkaApiVersioned for DescribeConfigsRequest {
+    fn api_key() -> i16 { 32 }
+    fn version() -> i16 { 1 }
 }
 
 impl ProtocolSerializable for DescribeConfigsRequest {
@@ -47,7 +53,6 @@ impl ProtocolSerializable for Resource {
 
 #[cfg(test)]
 mod tests {
-
     use kafka_protocol::protocol_requests::describeconfigs_request::*;
 
     fn verify_serde_for_describeconfigs_request(name_a: String, name_b: String) {

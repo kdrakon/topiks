@@ -1,9 +1,9 @@
+use kafka_protocol::api_verification::KafkaApiVersioned;
 use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives::I32;
 use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
-/// Version 3
 #[derive(Debug, Clone)]
 pub struct OffsetFetchRequest {
     pub group_id: String,
@@ -14,6 +14,11 @@ pub struct OffsetFetchRequest {
 pub struct Topic {
     pub topic: String,
     pub partitions: Vec<i32>,
+}
+
+impl KafkaApiVersioned for OffsetFetchRequest {
+    fn api_key() -> i16 { 9 }
+    fn version() -> i16 { 3 }
 }
 
 impl ProtocolSerializable for OffsetFetchRequest {

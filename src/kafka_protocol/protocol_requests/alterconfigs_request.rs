@@ -1,15 +1,14 @@
-use kafka_protocol::protocol_serializable::*;
+use kafka_protocol::api_verification::KafkaApiVersioned;
 use kafka_protocol::protocol_primitives::*;
+use kafka_protocol::protocol_request::Request;
 use kafka_protocol::protocol_requests;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::alterconfigs_response::AlterConfigsResponse;
-use util::tcp_stream_util::TcpRequestError;
-use util::tcp_stream_util;
-use kafka_protocol::protocol_request::Request;
+use kafka_protocol::protocol_serializable::*;
 use state::StateFNError;
+use util::tcp_stream_util;
+use util::tcp_stream_util::TcpRequestError;
 
-/// Version 0
-///
 #[derive(Clone, Debug)]
 pub struct AlterConfigsRequest {
     pub resources: Vec<Resource>,
@@ -27,6 +26,11 @@ pub struct Resource {
 pub struct ConfigEntry {
     pub config_name: String,
     pub config_value: Option<String>,
+}
+
+impl KafkaApiVersioned for AlterConfigsRequest {
+    fn api_key() -> i16 { 33 }
+    fn version() -> i16 { 0 }
 }
 
 impl ProtocolSerializable for AlterConfigsRequest {
@@ -77,9 +81,7 @@ pub fn exec(bootstrap: String, resource: Resource) -> Result<(), StateFNError> {
         tcp_stream_util::request(
             bootstrap.clone(),
             Request::of(
-                AlterConfigsRequest { resources: vec![resource], validate_only: false },
-                33,
-                0,
+                AlterConfigsRequest { resources: vec![resource], validate_only: false }
             ),
         );
     alterconfigs_response
