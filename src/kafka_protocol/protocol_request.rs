@@ -1,3 +1,4 @@
+use kafka_protocol::api_verification::KafkaApiVersioned;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
 use kafka_protocol::protocol_serializable::*;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
@@ -10,12 +11,12 @@ pub struct Request<T: ProtocolSerializable> {
     pub request_message: T,
 }
 
-impl<A: ProtocolSerializable> Request<A> {
-    pub fn of(request_message: A, api_key: i16, api_version: i16) -> Request<A> {
+impl<A: ProtocolSerializable + KafkaApiVersioned> Request<A> {
+    pub fn of(request_message: A) -> Request<A> {
         Request {
             header: RequestHeader {
-                api_key,
-                api_version,
+                api_key: A::api_key(),
+                api_version: A::version(),
                 correlation_id: 42,
                 client_id: String::from("topiks"),
             },

@@ -6,3 +6,5 @@ pub mod protocol_requests;
 
 pub mod protocol_response;
 pub mod protocol_responses;
+
+pub mod api_verification;

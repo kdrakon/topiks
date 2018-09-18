@@ -1,8 +1,8 @@
+use kafka_protocol::api_verification::KafkaApiVersioned;
 use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
 use kafka_protocol::protocol_serializable::*;
 
-/// Version 2
 #[derive(Clone)]
 pub struct ListOffsetsRequest {
     pub replica_id: i32,
@@ -20,6 +20,11 @@ pub struct Topic {
 pub struct Partition {
     pub partition: i32,
     pub timestamp: i64,
+}
+
+impl KafkaApiVersioned for ListOffsetsRequest {
+    fn api_key() -> i16 { 2 }
+    fn version() -> i16 { 2 }
 }
 
 impl ProtocolSerializable for ListOffsetsRequest {

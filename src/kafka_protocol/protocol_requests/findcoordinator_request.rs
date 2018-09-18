@@ -1,8 +1,7 @@
-use kafka_protocol::protocol_serializable::*;
+use kafka_protocol::api_verification::KafkaApiVersioned;
 use kafka_protocol::protocol_primitives::*;
+use kafka_protocol::protocol_serializable::*;
 
-/// Version 1
-///
 #[derive(Clone)]
 pub struct FindCoordinatorRequest {
     pub coordinator_key: String,
@@ -12,6 +11,11 @@ pub struct FindCoordinatorRequest {
 pub enum CoordinatorType {
     Group = 0,
     Transaction = 1,
+}
+
+impl KafkaApiVersioned for FindCoordinatorRequest {
+    fn api_key() -> i16 { 10 }
+    fn version() -> i16 { 1 }
 }
 
 impl ProtocolSerializable for FindCoordinatorRequest {

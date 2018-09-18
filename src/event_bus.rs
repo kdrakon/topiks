@@ -231,10 +231,7 @@ fn to_event(message: Message) -> Event {
                                         let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
                                             tcp_stream_util::request(
                                                 format!("{}:{}", controller_broker.host.clone(), controller_broker.port),
-                                                Request::of(
-                                                    deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 },
-                                                    20,
-                                                    1),
+                                                Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }),
                                             );
                                         match result {
                                             Ok(response) => {
@@ -454,7 +451,7 @@ fn retrieve_metadata(bootstrap: &String) -> Result<metadata_response::MetadataRe
     let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
         tcp_stream_util::request(
             bootstrap.clone(),
-            Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }, 3, 5),
+            Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }),
         );
     result
         .map(|response| {
@@ -474,7 +471,7 @@ fn retrieve_topic_metadata(bootstrap: &String, topic_name: &String) -> Result<de
     let result: Result<Response<describeconfigs_response::DescribeConfigsResponse>, TcpRequestError> =
         tcp_stream_util::request(
             bootstrap,
-            Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }, 32, 1),
+            Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }),
         );
     result
         .and_then(|response| {
@@ -530,9 +527,7 @@ Result<(Vec<metadata_response::PartitionMetadata>, HashMap<i32, listoffsets_resp
                 tcp_stream_util::request(
                     broker_address,
                     Request::of(
-                        listoffsets_request::ListOffsetsRequest { replica_id: -1, isolation_level: 0, topics: vec![topic] },
-                        2,
-                        2,
+                        listoffsets_request::ListOffsetsRequest { replica_id: -1, isolation_level: 0, topics: vec![topic] }
                     ),
                 );
             listoffsets_response
@@ -568,9 +563,7 @@ fn retrieve_consumer_offsets(group_id: &String, coordinator: &Coordinator, topic
         tcp_stream_util::request(
             format!("{}:{}", coordinator.host, coordinator.port),
             Request::of(
-                offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] },
-                9,
-                3,
+                offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }
             ),
         ).and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
             if result.response_message.error_code != 0 {
