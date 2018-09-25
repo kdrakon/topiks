@@ -44,6 +44,8 @@ pub mod event_bus;
 pub mod state;
 pub mod user_interface;
 
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 struct AppConfig<'a> {
     bootstrap_server: &'a str,
     consumer_group: Option<&'a str>,
@@ -57,7 +59,7 @@ fn main() -> Result<(), u8> {
     let args: Vec<String> = env::args().collect();
 
     let matches = App::new("topiks")
-        .version("0.1.0")
+        .version(VERSION)
         .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
         .arg(Arg::with_name("consumer-group").long("consumer-group").short("c").takes_value(true).help("Consumer group for fetching offsets"))
         .arg(Arg::with_name("delete").short("D").help("Enable topic/config deletion"))
