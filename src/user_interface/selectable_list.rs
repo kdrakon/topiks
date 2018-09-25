@@ -56,9 +56,9 @@ impl SelectableListItem for PartitionListItem {
         match &self {
             Normal { partition, partition_metadata, consumer_offset, partition_offset } => {
                 format!("{}▶ {}{:<4} {}{}{} C:{:10} OF:{:10} L:{} R:{} ISR:{} O:{}{}",
-                        color::Fg(color::LightYellow), color::Fg(color::Cyan),
+                        color::Fg(color::LightYellow), color::Fg(color::White),
                         partition,
-                        color::Fg(color::Green), offset_progress_bar::new(*consumer_offset, *partition_offset, 10), color::Fg(color::Cyan),
+                        color::Fg(color::Green), offset_progress_bar::new(*consumer_offset, *partition_offset, 50), color::Fg(color::White),
                         if *consumer_offset > 0 { format!("{}", consumer_offset) } else { String::from("--") },
                         format!("{}", partition_offset),
                         partition_metadata.leader,
@@ -88,7 +88,7 @@ impl SelectableListItem for TopicConfigurationItem {
             Selected(config) => format!("{}{}", color::Bg(color::LightBlack), config.display()),
             Override(config) => format!("{}{}", color::Fg(color::LightMagenta), config.display()),
             Deleted(config) => format!("{}{}", color::Bg(color::LightRed), config.display()),
-            Modified(config) => format!("{}{}", color::Bg(color::Yellow), config.display()),
+            Modified(config) => format!("{}{} {}", color::Bg(color::LightBlue), config.display(), "[refresh]"),
         }
     }
 }
