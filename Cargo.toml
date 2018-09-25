@@ -1,6 +1,6 @@
 [package]
 name = "topiks"
-version = "0.1.0-alpha"
+version = "0.1.0-alpha+001"
 authors = ["Sean Policarpio <sean@policarp.io>"]
 
 [dependencies]
