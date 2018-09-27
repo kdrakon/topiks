@@ -28,14 +28,15 @@ impl TcpRequestError {
 }
 
 pub trait ApiClientTrait {
-    fn request<A, T, U>(address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>
+    fn request<A, T, U>(&self, address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>
         where A: ToSocketAddrs, T: ProtocolSerializable, Vec<u8>: ProtocolDeserializable<Response<U>>;
 }
 
+#[derive(Clone)]
 pub struct ApiClient {}
 
 impl ApiClientTrait for ApiClient {
-    fn request<A, T, U>(address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>
+    fn request<A, T, U>(&self, address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>
         where A: ToSocketAddrs, T: ProtocolSerializable, Vec<u8>: ProtocolDeserializable<Response<U>> {
         let response =
             request.into_protocol_bytes().and_then(|bytes| {

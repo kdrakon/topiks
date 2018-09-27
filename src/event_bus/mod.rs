@@ -230,7 +230,7 @@ fn to_event(message: Message) -> Event {
                                         .collect::<Vec<&metadata_response::BrokerMetadata>>().first().map(|controller_broker| {
                                         let delete_topic_name = delete_topic_metadata.topic.clone();
                                         let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
-                                            ApiClient::request(
+                                            (ApiClient{}).request(
                                                 format!("{}:{}", controller_broker.host.clone(), controller_broker.port),
                                                 Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }),
                                             );
@@ -450,7 +450,7 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
 
 fn retrieve_metadata(bootstrap: &String) -> Result<metadata_response::MetadataResponse, TcpRequestError> {
     let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
-        ApiClient::request(
+        (ApiClient{}).request(
             bootstrap.clone(),
             Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }),
         );
@@ -470,7 +470,7 @@ fn retrieve_topic_metadata(bootstrap: &String, topic_name: &String) -> Result<de
         config_names: None,
     };
     let result: Result<Response<describeconfigs_response::DescribeConfigsResponse>, TcpRequestError> =
-        ApiClient::request(
+        (ApiClient{}).request(
             bootstrap,
             Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }),
         );
@@ -525,7 +525,7 @@ Result<(Vec<metadata_response::PartitionMetadata>, HashMap<i32, listoffsets_resp
     let partition_offset_responses =
         partition_offset_requests.into_iter().map(|(broker_address, topic)| {
             let listoffsets_response: Result<Response<listoffsets_response::ListOffsetsResponse>, TcpRequestError> =
-                ApiClient::request(
+                (ApiClient{}).request(
                     broker_address,
                     Request::of(
                         listoffsets_request::ListOffsetsRequest { replica_id: -1, isolation_level: 0, topics: vec![topic] }
@@ -561,7 +561,7 @@ fn retrieve_consumer_offsets(group_id: &String, coordinator: &Coordinator, topic
         };
 
     let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> =
-        ApiClient::request(
+        (ApiClient{}).request(
             format!("{}:{}", coordinator.host, coordinator.port),
             Request::of(
                 offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }

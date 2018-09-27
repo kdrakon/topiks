@@ -85,7 +85,7 @@ pub struct ApiVersionQuery(pub i16, pub i16); // api -> version
 
 pub fn apply(bootstrap_server: &str, queries: &Vec<ApiVersionQuery>) -> Result<(), Vec<ApiVerificationFailure>> {
     let result: Result<Response<ApiVersionResponse>, TcpRequestError> =
-        ApiClient::request(
+        (ApiClient{}).request(
             bootstrap_server.clone(),
             Request::of(ApiVersionsRequest {}),
         );

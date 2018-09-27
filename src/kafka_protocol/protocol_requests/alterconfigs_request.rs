@@ -79,7 +79,7 @@ impl ProtocolSerializable for ConfigEntry {
 
 pub fn exec(bootstrap: String, resource: Resource) -> Result<(), StateFNError> {
     let alterconfigs_response: Result<Response<AlterConfigsResponse>, TcpRequestError> =
-        ApiClient::request(
+        (ApiClient{}).request(
             bootstrap.clone(),
             Request::of(
                 AlterConfigsRequest { resources: vec![resource], validate_only: false }
