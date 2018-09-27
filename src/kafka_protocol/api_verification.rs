@@ -12,7 +12,9 @@ use kafka_protocol::protocol_requests::offsetfetch_request::OffsetFetchRequest;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_serializable::*;
 use util;
-use util::tcp_stream_util::TcpRequestError;
+use api_client::TcpRequestError;
+use api_client::ApiClientTrait;
+use api_client::ApiClient;
 use util::utils;
 
 #[derive(Debug)]
@@ -83,7 +85,7 @@ pub struct ApiVersionQuery(pub i16, pub i16); // api -> version
 
 pub fn apply(bootstrap_server: &str, queries: &Vec<ApiVersionQuery>) -> Result<(), Vec<ApiVerificationFailure>> {
     let result: Result<Response<ApiVersionResponse>, TcpRequestError> =
-        util::tcp_stream_util::request(
+        ApiClient::request(
             bootstrap_server.clone(),
             Request::of(ApiVersionsRequest {}),
         );

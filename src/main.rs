@@ -35,11 +35,14 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use user_interface::user_input;
-use util::tcp_stream_util::TcpRequestError;
+use api_client::ApiClientTrait;
+use api_client::ApiClient;
+use api_client::TcpRequestError;
 use kafka_protocol::api_verification::ApiVersionQuery;
 
 pub mod util;
 pub mod kafka_protocol;
+pub mod api_client;
 pub mod event_bus;
 pub mod state;
 pub mod user_interface;
@@ -88,7 +91,7 @@ fn main() -> Result<(), u8> {
 
         let consumer_group = app_config.consumer_group.clone().and_then(|cg| {
             let find_coordinator_response: Result<Response<FindCoordinatorResponse>, TcpRequestError> =
-                util::tcp_stream_util::request(app_config.bootstrap_server,
+                ApiClient::request(app_config.bootstrap_server,
                                                Request::of(
                                                    FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 }
                                                ),
