@@ -6,8 +6,9 @@ use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::alterconfigs_response::AlterConfigsResponse;
 use kafka_protocol::protocol_serializable::*;
 use state::StateFNError;
-use util::tcp_stream_util;
-use util::tcp_stream_util::TcpRequestError;
+use api_client::ApiClientTrait;
+use api_client::ApiClient;
+use api_client::TcpRequestError;
 
 #[derive(Clone, Debug)]
 pub struct AlterConfigsRequest {
@@ -78,7 +79,7 @@ impl ProtocolSerializable for ConfigEntry {
 
 pub fn exec(bootstrap: String, resource: Resource) -> Result<(), StateFNError> {
     let alterconfigs_response: Result<Response<AlterConfigsResponse>, TcpRequestError> =
-        tcp_stream_util::request(
+        ApiClient::request(
             bootstrap.clone(),
             Request::of(
                 AlterConfigsRequest { resources: vec![resource], validate_only: false }
