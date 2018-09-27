@@ -91,7 +91,7 @@ fn main() -> Result<(), u8> {
 
         let consumer_group = app_config.consumer_group.clone().and_then(|cg| {
             let find_coordinator_response: Result<Response<FindCoordinatorResponse>, TcpRequestError> =
-                ApiClient::request(app_config.bootstrap_server,
+                (ApiClient{}).request(app_config.bootstrap_server,
                                                Request::of(
                                                    FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 }
                                                ),
