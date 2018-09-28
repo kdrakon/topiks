@@ -79,7 +79,7 @@ fn main() -> Result<(), u8> {
         modification_enabled: matches.is_present("modify"),
     };
 
-    if let Err(err) = kafka_protocol::api_verification::apply(app_config.bootstrap_server, &kafka_protocol::api_verification::apis_in_use()) {
+    if let Err(err) = kafka_protocol::api_verification::apply(ApiClient::new(), app_config.bootstrap_server, &kafka_protocol::api_verification::apis_in_use()) {
         eprintln!("Kafka Protocol API Error(s): {:?}", err);
         Err(127)
     } else {
@@ -91,10 +91,10 @@ fn main() -> Result<(), u8> {
 
         let consumer_group = app_config.consumer_group.clone().and_then(|cg| {
             let find_coordinator_response: Result<Response<FindCoordinatorResponse>, TcpRequestError> =
-                (ApiClient{}).request(app_config.bootstrap_server,
-                                               Request::of(
-                                                   FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 }
-                                               ),
+                ApiClient::new().request(app_config.bootstrap_server,
+                                         Request::of(
+                                             FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 }
+                                         ),
                 );
             find_coordinator_response.ok().and_then(|find_coordinator_response| {
                 if find_coordinator_response.response_message.error_code == 0 {

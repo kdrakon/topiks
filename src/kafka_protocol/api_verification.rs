@@ -83,9 +83,9 @@ impl ProtocolDeserializable<ApiVersionResponse> for Vec<u8> {
 
 pub struct ApiVersionQuery(pub i16, pub i16); // api -> version
 
-pub fn apply(bootstrap_server: &str, queries: &Vec<ApiVersionQuery>) -> Result<(), Vec<ApiVerificationFailure>> {
+pub fn apply<T: ApiClientTrait + 'static>(api_client: T, bootstrap_server: &str, queries: &Vec<ApiVersionQuery>) -> Result<(), Vec<ApiVerificationFailure>> {
     let result: Result<Response<ApiVersionResponse>, TcpRequestError> =
-        (ApiClient{}).request(
+        api_client.request(
             bootstrap_server.clone(),
             Request::of(ApiVersionsRequest {}),
         );
