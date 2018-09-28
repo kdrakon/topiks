@@ -277,7 +277,7 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                         config_entries: existing_configs,
                                     };
 
-                                    alterconfigs_request::exec(bootstrap.clone(), resource).map(|_| {
+                                    alter_config(api_client_provider(), &bootstrap, &resource).map(|_| {
                                         Deletion::Config(config_entry.config_name.clone())
                                     })
                                 }
@@ -317,7 +317,7 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                         config_entries: existing_configs,
                                     };
 
-                                    alterconfigs_request::exec(bootstrap.clone(), resource).map(|_| {
+                                    alter_config(api_client_provider(), &bootstrap, &resource).map(|_| {
                                         Modification::Config(config_entry.config_name.clone())
                                     })
                                 }
@@ -628,6 +628,38 @@ fn delete_topic<T: ApiClientTrait + 'static>(client: IO<T, TcpRequestError>, del
             Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }),
         )
     }))
+}
+
+fn alter_config<T: ApiClientTrait + 'static>(client: IO<T, TcpRequestError>, bootstrap: &String, resource: &alterconfigs_request::Resource) -> Result<(), StateFNError> {
+    let bootstrap = bootstrap.clone();
+    let resource = resource.clone();
+
+    let alterconfigs_response: Result<Response<alterconfigs_response::AlterConfigsResponse>, TcpRequestError> =
+        client.and_then_result(Box::new(move |client: T| {
+            client.request(
+                bootstrap.clone(),
+                Request::of(
+                    alterconfigs_request::AlterConfigsRequest { resources: vec![resource.clone()], validate_only: false }
+                ),
+            )
+        })).into_result();
+
+    alterconfigs_response
+        .map_err(|tcp_error| StateFNError::caused("AlterConfigs request failed", tcp_error))
+        .and_then(|alterconfigs_response| {
+            match alterconfigs_response.response_message.resources.first() {
+                None => Err(StateFNError::error("Missing resources from AlterConfigs request")),
+                Some(resource) => {
+                    if resource.error_code == 0 {
+                        Ok(())
+                    } else {
+                        Err(StateFNError::Error(
+                            format!("AlterConfigs request failed with error code {}, {}", resource.error_code, resource.error_message.clone().unwrap_or(format!(""))))
+                        )
+                    }
+                }
+            }
+        })
 }
 
 #[cfg(test)]

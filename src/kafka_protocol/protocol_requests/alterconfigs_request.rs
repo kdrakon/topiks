@@ -76,29 +76,3 @@ impl ProtocolSerializable for ConfigEntry {
         })
     }
 }
-
-pub fn exec(bootstrap: String, resource: Resource) -> Result<(), StateFNError> {
-    let alterconfigs_response: Result<Response<AlterConfigsResponse>, TcpRequestError> =
-        (ApiClient{}).request(
-            bootstrap.clone(),
-            Request::of(
-                AlterConfigsRequest { resources: vec![resource], validate_only: false }
-            ),
-        );
-    alterconfigs_response
-        .map_err(|tcp_error| StateFNError::caused("AlterConfigs request failed", tcp_error))
-        .and_then(|alterconfigs_response| {
-            match alterconfigs_response.response_message.resources.first() {
-                None => Err(StateFNError::error("Missing resources from AlterConfigs request")),
-                Some(resource) => {
-                    if resource.error_code == 0 {
-                        Ok(())
-                    } else {
-                        Err(StateFNError::Error(
-                            format!("AlterConfigs request failed with error code {}, {}", resource.error_code, resource.error_message.clone().unwrap_or(format!(""))))
-                        )
-                    }
-                }
-            }
-        })
-}

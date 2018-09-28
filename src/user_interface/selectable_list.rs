@@ -87,7 +87,7 @@ impl SelectableListItem for TopicConfigurationItem {
             Config { name, value } => format!("{}: {}", name, value.as_ref().unwrap_or(&format!(""))),
             Selected(config) => format!("{}{}", color::Bg(color::LightBlack), config.display()),
             Override(config) => format!("{}{}", color::Fg(color::LightMagenta), config.display()),
-            Deleted(config) => format!("{}{}", color::Bg(color::LightRed), config.display()),
+            Deleted(config) => format!("{}{} {}", color::Bg(color::LightBlue), config.display(), "[refresh]"),
             Modified(config) => format!("{}{} {}", color::Bg(color::LightBlue), config.display(), "[refresh]"),
         }
     }
