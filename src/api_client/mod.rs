@@ -2,16 +2,17 @@ use byteorder::{BigEndian, ReadBytesExt};
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_serializable::*;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io::{Cursor, Read, Write};
-use std::net::*;
-use util::utils;
-use std::iter::FromIterator;
-use std::collections::HashMap;
 use std::hash::Hash;
+use std::io::{Cursor, Read, Write};
+use std::iter::FromIterator;
+use std::net::*;
+use util::io::IO;
+use util::utils;
 
 #[derive(Debug)]
 pub struct TcpRequestError { pub error: String }
@@ -32,8 +33,14 @@ pub trait ApiClientTrait {
         where A: ToSocketAddrs, T: ProtocolSerializable, Vec<u8>: ProtocolDeserializable<Response<U>>;
 }
 
+pub type ApiClientProvider<T: ApiClientTrait + 'static> = Box<Fn() -> IO<T, TcpRequestError>>;
+
 #[derive(Clone)]
 pub struct ApiClient {}
+
+impl ApiClient {
+    pub fn new() -> ApiClient { ApiClient {} }
+}
 
 impl ApiClientTrait for ApiClient {
     fn request<A, T, U>(&self, address: A, request: Request<T>) -> Result<Response<U>, TcpRequestError>
