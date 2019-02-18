@@ -39,15 +39,14 @@ impl ProtocolDeserializable<Coordinator> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<Coordinator> {
         de_i32(self[0..=3].to_vec()).and_then(|node_id| {
             de_string(self[4..].to_vec()).and_then(|(host, bytes)| {
-                host.ok_or(DeserializeError::of("Unexpected null host for Coordinator")).and_then(|host| {
-                    de_i32(bytes[0..=3].to_vec()).map(|port| {
-                        Coordinator {
+                host.ok_or(DeserializeError::of("Unexpected null host for Coordinator"))
+                    .and_then(|host| {
+                        de_i32(bytes[0..=3].to_vec()).map(|port| Coordinator {
                             node_id,
                             host,
                             port,
-                        }
+                        })
                     })
-                })
             })
         })
     }

@@ -6,19 +6,23 @@ use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 #[derive(Clone)]
 pub struct DescribeConfigsRequest {
     pub resources: Vec<Resource>,
-    pub include_synonyms: bool
+    pub include_synonyms: bool,
 }
 
 #[derive(Clone)]
 pub struct Resource {
     pub resource_type: i8,
     pub resource_name: String,
-    pub config_names: Option<Vec<String>>
+    pub config_names: Option<Vec<String>>,
 }
 
 impl KafkaApiVersioned for DescribeConfigsRequest {
-    fn api_key() -> i16 { 32 }
-    fn version() -> i16 { 1 }
+    fn api_key() -> i16 {
+        32
+    }
+    fn version() -> i16 {
+        1
+    }
 }
 
 impl ProtocolSerializable for DescribeConfigsRequest {
@@ -26,10 +30,12 @@ impl ProtocolSerializable for DescribeConfigsRequest {
         let resources = self.resources;
         let include_synonyms = self.include_synonyms;
         resources.into_protocol_bytes().and_then(|mut resources| {
-            ProtocolPrimitives::Boolean(include_synonyms).into_protocol_bytes().map(|ref mut include_synonyms|{
-                resources.append(include_synonyms);
-                resources
-            })
+            ProtocolPrimitives::Boolean(include_synonyms)
+                .into_protocol_bytes()
+                .map(|ref mut include_synonyms| {
+                    resources.append(include_synonyms);
+                    resources
+                })
         })
     }
 }
@@ -39,15 +45,22 @@ impl ProtocolSerializable for Resource {
         let resource_type = ProtocolPrimitives::I8(self.resource_type);
         let resource_name = self.resource_name;
         let config_names = self.config_names;
-        resource_type.into_protocol_bytes().and_then(|mut resource_type|{
-            resource_name.clone().into_protocol_bytes().and_then(|ref mut resource_name|{
-                config_names.into_protocol_bytes().map(|ref mut config_names|{
-                    resource_type.append(resource_name);
-                    resource_type.append(config_names);
-                    resource_type
-                })
+        resource_type
+            .into_protocol_bytes()
+            .and_then(|mut resource_type| {
+                resource_name
+                    .clone()
+                    .into_protocol_bytes()
+                    .and_then(|ref mut resource_name| {
+                        config_names
+                            .into_protocol_bytes()
+                            .map(|ref mut config_names| {
+                                resource_type.append(resource_name);
+                                resource_type.append(config_names);
+                                resource_type
+                            })
+                    })
             })
-        })
     }
 }
 
@@ -57,14 +70,29 @@ mod tests {
 
     fn verify_serde_for_describeconfigs_request(name_a: String, name_b: String) {
         let resources = vec![
-            Resource { resource_type: 1, resource_name: name_a.clone(), config_names: Some(vec![String::from("foo")]) },
-            Resource { resource_type: 1, resource_name: name_b, config_names: Some(vec![String::from("bar")]) },
-            Resource { resource_type: 1, resource_name: name_a, config_names: None }
+            Resource {
+                resource_type: 1,
+                resource_name: name_a.clone(),
+                config_names: Some(vec![String::from("foo")]),
+            },
+            Resource {
+                resource_type: 1,
+                resource_name: name_b,
+                config_names: Some(vec![String::from("bar")]),
+            },
+            Resource {
+                resource_type: 1,
+                resource_name: name_a,
+                config_names: None,
+            },
         ];
-        let request = DescribeConfigsRequest { resources, include_synonyms: false };
+        let request = DescribeConfigsRequest {
+            resources,
+            include_synonyms: false,
+        };
         match request.into_protocol_bytes() {
-            Ok(bytes) => (),
-            Err(e) => panic!(e)
+            Ok(_bytes) => (),
+            Err(e) => panic!(e),
         }
     }
 
