@@ -9,7 +9,7 @@ osx: clean
 	file target/x86_64-apple-darwin/release/topiks
 
 linux: clean
-	docker run -it --rm -v $(PWD):$(PWD) -w $(PWD) rust:1.29.0 sh -c \
+	docker run -it --rm -v $(PWD):$(PWD) -w $(PWD) rust:1.32.0 sh -c \
 	'cargo build -v --release --target x86_64-unknown-linux-gnu \
 		&& strip target/x86_64-unknown-linux-gnu/release/topiks \
 		&& file target/x86_64-unknown-linux-gnu/release/topiks'
