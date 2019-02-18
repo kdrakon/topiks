@@ -1,8 +1,7 @@
 use kafka_protocol::api_verification::KafkaApiVersioned;
-use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives::*;
-use kafka_protocol::protocol_serializable::*;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
+use kafka_protocol::protocol_serializable::*;
 
 #[derive(Clone)]
 pub struct DeleteTopicsRequest {
@@ -11,8 +10,12 @@ pub struct DeleteTopicsRequest {
 }
 
 impl KafkaApiVersioned for DeleteTopicsRequest {
-    fn api_key() -> i16 { 20 }
-    fn version() -> i16 { 1 }
+    fn api_key() -> i16 {
+        20
+    }
+    fn version() -> i16 {
+        1
+    }
 }
 
 impl ProtocolSerializable for DeleteTopicsRequest {
@@ -40,7 +43,7 @@ mod tests {
                 timeout: 42
             };
             match request.into_protocol_bytes() {
-                Ok(bytes) => (),
+                Ok(_bytes) => (),
                 Err(e) => panic!(e)
             };
         }

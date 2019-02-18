@@ -11,13 +11,20 @@ pub struct Response<T> {
 }
 
 impl<T> ProtocolDeserializable<Response<T>> for Vec<u8>
-    where Vec<u8>: ProtocolDeserializable<T> {
+where
+    Vec<u8>: ProtocolDeserializable<T>,
+{
     fn into_protocol_type(self) -> ProtocolDeserializeResult<Response<T>> {
-        ProtocolDeserializable::<ResponseHeader>::into_protocol_type(self[0..4].to_vec()).and_then(|header| {
-            ProtocolDeserializable::<T>::into_protocol_type(self[4..].to_vec()).map(|response_message| {
-                Response { header, response_message }
-            })
-        })
+        ProtocolDeserializable::<ResponseHeader>::into_protocol_type(self[0..4].to_vec()).and_then(
+            |header| {
+                ProtocolDeserializable::<T>::into_protocol_type(self[4..].to_vec()).map(
+                    |response_message| Response {
+                        header,
+                        response_message,
+                    },
+                )
+            },
+        )
     }
 }
 
@@ -25,13 +32,11 @@ impl<T> ProtocolDeserializable<Response<T>> for Vec<u8>
 ///
 #[derive(Debug)]
 pub struct ResponseHeader {
-    pub correlation_id: i32
+    pub correlation_id: i32,
 }
 
 impl ProtocolDeserializable<ResponseHeader> for Vec<u8> {
     fn into_protocol_type(self) -> ProtocolDeserializeResult<ResponseHeader> {
-        de_i32(self).map(|correlation_id| {
-            ResponseHeader { correlation_id }
-        })
+        de_i32(self).map(|correlation_id| ResponseHeader { correlation_id })
     }
 }
