@@ -1,6 +1,6 @@
 use kafka_protocol::api_verification::KafkaApiVersioned;
-use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_primitives::ProtocolPrimitives::I32;
+use kafka_protocol::protocol_primitives::*;
 use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use kafka_protocol::protocol_serializable::ProtocolSerializeResult;
 
@@ -17,8 +17,12 @@ pub struct Topic {
 }
 
 impl KafkaApiVersioned for OffsetFetchRequest {
-    fn api_key() -> i16 { 9 }
-    fn version() -> i16 { 3 }
+    fn api_key() -> i16 {
+        9
+    }
+    fn version() -> i16 {
+        3
+    }
 }
 
 impl ProtocolSerializable for OffsetFetchRequest {
@@ -39,8 +43,10 @@ impl ProtocolSerializable for Topic {
         let topic = self.topic;
         let partitions = self.partitions;
         topic.into_protocol_bytes().and_then(|mut topic| {
-            partitions.into_iter()
-                .map(|p| I32(p)).collect::<Vec<ProtocolPrimitives>>()
+            partitions
+                .into_iter()
+                .map(|p| I32(p))
+                .collect::<Vec<ProtocolPrimitives>>()
                 .into_protocol_bytes()
                 .map(|ref mut partitions| {
                     topic.append(partitions);
