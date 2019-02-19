@@ -1,13 +1,6 @@
 use kafka_protocol::api_verification::KafkaApiVersioned;
 use kafka_protocol::protocol_primitives::*;
-use kafka_protocol::protocol_request::Request;
-use kafka_protocol::protocol_requests;
-use kafka_protocol::protocol_response::Response;
-use kafka_protocol::protocol_responses::alterconfigs_response::AlterConfigsResponse;
 use kafka_protocol::protocol_serializable::*;
-use state::StateFNError;
-use util::tcp_stream_util;
-use util::tcp_stream_util::TcpRequestError;
 
 #[derive(Clone, Debug)]
 pub struct AlterConfigsRequest {
@@ -29,8 +22,12 @@ pub struct ConfigEntry {
 }
 
 impl KafkaApiVersioned for AlterConfigsRequest {
-    fn api_key() -> i16 { 33 }
-    fn version() -> i16 { 0 }
+    fn api_key() -> i16 {
+        33
+    }
+    fn version() -> i16 {
+        0
+    }
 }
 
 impl ProtocolSerializable for AlterConfigsRequest {
@@ -38,10 +35,12 @@ impl ProtocolSerializable for AlterConfigsRequest {
         let resources = self.resources;
         let validate_only = self.validate_only;
         resources.into_protocol_bytes().and_then(|mut resources| {
-            ProtocolPrimitives::Boolean(validate_only).into_protocol_bytes().map(|ref mut validate_only| {
-                resources.append(validate_only);
-                resources
-            })
+            ProtocolPrimitives::Boolean(validate_only)
+                .into_protocol_bytes()
+                .map(|ref mut validate_only| {
+                    resources.append(validate_only);
+                    resources
+                })
         })
     }
 }
@@ -51,15 +50,21 @@ impl ProtocolSerializable for Resource {
         let resource_type = self.resource_type;
         let resource_name = self.resource_name;
         let config_entries = self.config_entries;
-        ProtocolPrimitives::I8(resource_type).into_protocol_bytes().and_then(|mut resource_type| {
-            resource_name.into_protocol_bytes().and_then(|ref mut resource_name| {
-                config_entries.into_protocol_bytes().map(|ref mut config_entries| {
-                    resource_type.append(resource_name);
-                    resource_type.append(config_entries);
-                    resource_type
-                })
+        ProtocolPrimitives::I8(resource_type)
+            .into_protocol_bytes()
+            .and_then(|mut resource_type| {
+                resource_name
+                    .into_protocol_bytes()
+                    .and_then(|ref mut resource_name| {
+                        config_entries
+                            .into_protocol_bytes()
+                            .map(|ref mut config_entries| {
+                                resource_type.append(resource_name);
+                                resource_type.append(config_entries);
+                                resource_type
+                            })
+                    })
             })
-        })
     }
 }
 
@@ -67,37 +72,15 @@ impl ProtocolSerializable for ConfigEntry {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
         let config_name = self.config_name;
         let config_value = self.config_value;
-        config_name.into_protocol_bytes().and_then(|mut config_name| {
-            config_value.into_protocol_bytes().map(|ref mut config_value| {
-                config_name.append(config_value);
-                config_name
+        config_name
+            .into_protocol_bytes()
+            .and_then(|mut config_name| {
+                config_value
+                    .into_protocol_bytes()
+                    .map(|ref mut config_value| {
+                        config_name.append(config_value);
+                        config_name
+                    })
             })
-        })
     }
-}
-
-pub fn exec(bootstrap: String, resource: Resource) -> Result<(), StateFNError> {
-    let alterconfigs_response: Result<Response<AlterConfigsResponse>, TcpRequestError> =
-        tcp_stream_util::request(
-            bootstrap.clone(),
-            Request::of(
-                AlterConfigsRequest { resources: vec![resource], validate_only: false }
-            ),
-        );
-    alterconfigs_response
-        .map_err(|tcp_error| StateFNError::caused("AlterConfigs request failed", tcp_error))
-        .and_then(|alterconfigs_response| {
-            match alterconfigs_response.response_message.resources.first() {
-                None => Err(StateFNError::error("Missing resources from AlterConfigs request")),
-                Some(resource) => {
-                    if resource.error_code == 0 {
-                        Ok(())
-                    } else {
-                        Err(StateFNError::Error(
-                            format!("AlterConfigs request failed with error code {}, {}", resource.error_code, resource.error_message.clone().unwrap_or(format!(""))))
-                        )
-                    }
-                }
-            }
-        })
 }

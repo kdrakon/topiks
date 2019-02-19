@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::fmt::Display;
+
 use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
 use kafka_protocol::protocol_responses::listoffsets_response;
 use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
@@ -5,10 +8,6 @@ use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
 use kafka_protocol::protocol_responses::offsetfetch_response;
 use state::CurrentView::*;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Display;
-use std::fmt::Formatter;
 
 #[derive(Clone)]
 pub struct State {
@@ -24,7 +23,12 @@ pub struct State {
 }
 
 #[derive(Clone)]
-pub enum DialogMessage { None, Warn(String), Info(String), Error(String) }
+pub enum DialogMessage {
+    None,
+    Warn(String),
+    Info(String),
+    Error(String),
+}
 
 #[derive(Clone)]
 pub enum CurrentView {
@@ -51,29 +55,45 @@ impl StateFNError {
 
 impl State {
     pub fn new() -> State {
-        State { dialog_message: None, user_input: None, current_view: Topics, metadata: None, selected_index: 0, marked_deleted: vec![], topic_name_query: None, topic_info_state: None, partition_info_state: None }
+        State {
+            dialog_message: None,
+            user_input: None,
+            current_view: Topics,
+            metadata: None,
+            selected_index: 0,
+            marked_deleted: vec![],
+            topic_name_query: None,
+            topic_info_state: None,
+            partition_info_state: None,
+        }
     }
 
     pub fn selected_topic_name(&self) -> Option<String> {
         self.metadata.as_ref().and_then(|metadata| {
-            metadata.topic_metadata.get(self.selected_index).map(|m: &TopicMetadata| {
-                m.topic.clone()
-            })
+            metadata
+                .topic_metadata
+                .get(self.selected_index)
+                .map(|m: &TopicMetadata| m.topic.clone())
         })
     }
 
     pub fn selected_topic_metadata(&self) -> Option<TopicMetadata> {
         self.metadata.as_ref().and_then(|metadata| {
-            metadata.topic_metadata.get(self.selected_index).map(|topic_metadata| {
-                topic_metadata.clone()
-            })
+            metadata
+                .topic_metadata
+                .get(self.selected_index)
+                .map(|topic_metadata| topic_metadata.clone())
         })
     }
 
     pub fn find_next_index(&self, in_reverse: bool) -> Option<usize> {
         self.topic_name_query.as_ref().and_then(|query| {
             self.metadata.as_ref().and_then(|metadata| {
-                let indexed = metadata.topic_metadata.iter().zip((0..metadata.topic_metadata.len())).collect::<Vec<(&TopicMetadata, usize)>>();
+                let indexed = metadata
+                    .topic_metadata
+                    .iter()
+                    .zip(0..metadata.topic_metadata.len())
+                    .collect::<Vec<(&TopicMetadata, usize)>>();
                 let slice = if self.selected_index < metadata.topic_metadata.len() {
                     if in_reverse {
                         let mut vec = indexed.as_slice()[0..self.selected_index].to_vec();
@@ -86,10 +106,13 @@ impl State {
                     vec![]
                 };
 
-                slice.iter().find(|m| {
-                    let (topic_metadata, index) = **m;
-                    topic_metadata.topic.contains(query)
-                }).map(|result| result.1)
+                slice
+                    .iter()
+                    .find(|m| {
+                        let (topic_metadata, _index) = **m;
+                        topic_metadata.topic.contains(query)
+                    })
+                    .map(|result| result.1)
             })
         })
     }
@@ -106,7 +129,13 @@ pub struct TopicInfoState {
 
 impl TopicInfoState {
     pub fn new(topic_metadata: TopicMetadata, config_resource: Resource) -> TopicInfoState {
-        TopicInfoState { topic_metadata, config_resource, selected_index: 0, configs_marked_deleted: vec![], configs_marked_modified: vec![] }
+        TopicInfoState {
+            topic_metadata,
+            config_resource,
+            selected_index: 0,
+            configs_marked_deleted: vec![],
+            configs_marked_modified: vec![],
+        }
     }
 }
 
@@ -119,8 +148,16 @@ pub struct PartitionInfoState {
 }
 
 impl PartitionInfoState {
-    pub fn new(partition_metadata: Vec<PartitionMetadata>, partition_offsets: HashMap<i32, listoffsets_response::PartitionResponse>, consumer_offsets: HashMap<i32, offsetfetch_response::PartitionResponse>)
-               -> PartitionInfoState {
-        PartitionInfoState { selected_index: 0, partition_metadata, partition_offsets, consumer_offsets }
+    pub fn new(
+        partition_metadata: Vec<PartitionMetadata>,
+        partition_offsets: HashMap<i32, listoffsets_response::PartitionResponse>,
+        consumer_offsets: HashMap<i32, offsetfetch_response::PartitionResponse>,
+    ) -> PartitionInfoState {
+        PartitionInfoState {
+            selected_index: 0,
+            partition_metadata,
+            partition_offsets,
+            consumer_offsets,
+        }
     }
 }
