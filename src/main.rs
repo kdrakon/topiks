@@ -1,5 +1,6 @@
 extern crate byteorder;
 extern crate clap;
+extern crate native_tls;
 #[cfg(test)]
 #[macro_use]
 extern crate proptest;
@@ -18,7 +19,6 @@ use termion::terminal_size;
 use api_client::ApiClient;
 use api_client::ApiClientTrait;
 use api_client::TcpRequestError;
-use event_bus::BootstrapServer;
 use event_bus::ConsumerGroup;
 use event_bus::Message;
 use event_bus::MoveSelection::*;
@@ -41,8 +41,20 @@ pub mod util;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
+#[derive(Clone)]
+pub struct BootstrapServer(pub String, pub i32);
+
+impl BootstrapServer {
+    fn domain(&self) -> &str {
+        &self.0
+    }
+    fn socket_addr(&self) -> String {
+        format!("{}:{}", self.0, self.1)
+    }
+}
+
 struct AppConfig<'a> {
-    bootstrap_server: &'a str,
+    bootstrap_server: BootstrapServer,
     consumer_group: Option<&'a str>,
     request_timeout_ms: i32,
     deletion_allowed: bool,
@@ -86,7 +98,10 @@ fn main() -> Result<(), u8> {
         .get_matches();
 
     let app_config = AppConfig {
-        bootstrap_server: matches.value_of("bootstrap-server").unwrap(),
+        bootstrap_server: BootstrapServer(
+            String::from(matches.value_of("bootstrap-server").unwrap()),
+            9092,
+        ), // TODO need to extract port
         consumer_group: matches.value_of("consumer-group"),
         request_timeout_ms: 30_000,
         deletion_allowed: matches.is_present("delete"),
@@ -96,7 +111,7 @@ fn main() -> Result<(), u8> {
 
     if let Err(err) = kafka_protocol::api_verification::apply(
         ApiClient::new(),
-        app_config.bootstrap_server,
+        &app_config.bootstrap_server,
         &kafka_protocol::api_verification::apis_in_use(),
     ) {
         eprintln!("Kafka Protocol API Error(s): {:?}", err);
@@ -106,14 +121,14 @@ fn main() -> Result<(), u8> {
         let _stdout = &mut AlternateScreen::from(std::io::stdout().into_raw_mode().unwrap()); // raw mode to avoid screen output
         let stdin = stdin();
 
-        let bootstrap_server = || BootstrapServer(String::from(app_config.bootstrap_server));
+        let bootstrap_server = || app_config.bootstrap_server.clone();
 
         let consumer_group = app_config.consumer_group.clone().and_then(|cg| {
             let find_coordinator_response: Result<
                 Response<FindCoordinatorResponse>,
                 TcpRequestError,
             > = ApiClient::new().request(
-                app_config.bootstrap_server,
+                &app_config.bootstrap_server,
                 Request::of(FindCoordinatorRequest {
                     coordinator_key: String::from(cg),
                     coordinator_type: CoordinatorType::Group as i8,
