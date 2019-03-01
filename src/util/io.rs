@@ -60,9 +60,7 @@ pub fn foo() -> Result<String, String> {
     let external_io = Box::new(|| Ok(String::from("coo coo coo")));
     let io: IO<i32, String> = IO::new(Box::new(|| Ok(42)));
 
-    let io2: IO<String, String> = io
-        .map(Box::new(|i: i32| i * 2))
-        .and_then(Box::new(move |_i: i32| IO::new(external_io.clone())));
+    let io2: IO<String, String> = io.map(Box::new(|i: i32| i * 2)).and_then(Box::new(move |_i: i32| IO::new(external_io.clone())));
 
     io2.into_result()
 }

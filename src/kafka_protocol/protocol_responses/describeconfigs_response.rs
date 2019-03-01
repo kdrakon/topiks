@@ -44,17 +44,12 @@ pub enum ConfigSource {
 impl ProtocolDeserializable<DescribeConfigsResponse> for Vec<u8> {
     fn into_protocol_type(self) -> Result<DescribeConfigsResponse, DeserializeError> {
         de_i32(self[0..=3].to_vec()).and_then(|throttle_time_ms| {
-            de_array(self[4..].to_vec(), deserialize_resource).map(
-                |(resources, remaining_bytes)| {
-                    if !remaining_bytes.is_empty() {
-                        panic!("Unexpected bytes deserializing DescribeConfigsResponse")
-                    }
-                    DescribeConfigsResponse {
-                        throttle_time_ms,
-                        resources,
-                    }
-                },
-            )
+            de_array(self[4..].to_vec(), deserialize_resource).map(|(resources, remaining_bytes)| {
+                if !remaining_bytes.is_empty() {
+                    panic!("Unexpected bytes deserializing DescribeConfigsResponse")
+                }
+                DescribeConfigsResponse { throttle_time_ms, resources }
+            })
         })
     }
 }
@@ -70,8 +65,7 @@ fn deserialize_resource(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize
                                 error_code,
                                 error_message,
                                 resource_type,
-                                resource_name: resource_name
-                                    .expect("Unexpected undefined resource name"),
+                                resource_name: resource_name.expect("Unexpected undefined resource name"),
                                 config_entries,
                             },
                             bytes,
@@ -89,38 +83,30 @@ fn deserialize_config_entry(bytes: Vec<u8>) -> ProtocolDeserializeResult<Dynamic
             let read_only = bytes[0] == 1;
             let config_source = bytes[1] as i8;
             let is_sensitive = bytes[2] == 1;
-            Ok((read_only, config_source, is_sensitive, bytes[3..].to_vec())).and_then(
-                |(read_only, config_source, is_sensitive, bytes)| {
-                    de_array(bytes, deserialize_config_synonym).map(|(config_synonyms, bytes)| {
-                        (
-                            ConfigEntry {
-                                config_name: config_name.expect("Unexpected undefined config name"),
-                                config_value,
-                                read_only,
-                                config_source,
-                                is_sensitive,
-                                config_synonyms,
-                            },
-                            bytes,
-                        )
-                    })
-                },
-            )
+            Ok((read_only, config_source, is_sensitive, bytes[3..].to_vec())).and_then(|(read_only, config_source, is_sensitive, bytes)| {
+                de_array(bytes, deserialize_config_synonym).map(|(config_synonyms, bytes)| {
+                    (
+                        ConfigEntry {
+                            config_name: config_name.expect("Unexpected undefined config name"),
+                            config_value,
+                            read_only,
+                            config_source,
+                            is_sensitive,
+                            config_synonyms,
+                        },
+                        bytes,
+                    )
+                })
+            })
         })
     })
 }
 
-fn deserialize_config_synonym(
-    bytes: Vec<u8>,
-) -> ProtocolDeserializeResult<DynamicSize<ConfigSynonym>> {
+fn deserialize_config_synonym(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<ConfigSynonym>> {
     de_string(bytes).and_then(|(config_name, bytes)| {
         de_string(bytes).map(|(config_value, bytes)| {
             (
-                ConfigSynonym {
-                    config_name: config_name.expect("Unexpected undefined config name"),
-                    config_value,
-                    config_source: bytes[0] as i8,
-                },
+                ConfigSynonym { config_name: config_name.expect("Unexpected undefined config name"), config_value, config_source: bytes[0] as i8 },
                 bytes[1..].to_vec(),
             )
         })
