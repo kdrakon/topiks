@@ -13,6 +13,7 @@ use kafka_protocol::protocol_requests::metadata_request::MetadataRequest;
 use kafka_protocol::protocol_requests::offsetfetch_request::OffsetFetchRequest;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_serializable::*;
+use BootstrapServer;
 
 #[derive(Debug)]
 pub enum ApiVerificationFailure {
@@ -88,11 +89,11 @@ pub struct ApiVersionQuery(pub i16, pub i16); // api -> version
 
 pub fn apply<T: ApiClientTrait + 'static>(
     api_client: T,
-    bootstrap_server: &str,
+    bootstrap_server: &BootstrapServer,
     queries: &Vec<ApiVersionQuery>,
 ) -> Result<(), Vec<ApiVerificationFailure>> {
     let result: Result<Response<ApiVersionResponse>, TcpRequestError> =
-        api_client.request(bootstrap_server.clone(), Request::of(ApiVersionsRequest {}));
+        api_client.request(bootstrap_server, Request::of(ApiVersionsRequest {}));
 
     let verification = result
         .map(|response| response.response_message.api_versions)

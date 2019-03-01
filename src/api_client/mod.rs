@@ -6,11 +6,13 @@ use std::io::{Cursor, Read, Write};
 use std::net::*;
 
 use byteorder::{BigEndian, ReadBytesExt};
+use native_tls::TlsConnector;
 
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_serializable::*;
 use util::io::IO;
+use BootstrapServer;
 
 #[derive(Debug)]
 pub struct TcpRequestError {
@@ -33,13 +35,12 @@ impl TcpRequestError {
 }
 
 pub trait ApiClientTrait {
-    fn request<A, T, U>(
+    fn request<T, U>(
         &self,
-        address: A,
+        bootstrap_server: &BootstrapServer,
         request: Request<T>,
     ) -> Result<Response<U>, TcpRequestError>
     where
-        A: ToSocketAddrs,
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>;
 }
@@ -56,18 +57,20 @@ impl ApiClient {
 }
 
 impl ApiClientTrait for ApiClient {
-    fn request<A, T, U>(
+    fn request<T, U>(
         &self,
-        address: A,
+        bootstrap_server: &BootstrapServer,
         request: Request<T>,
     ) -> Result<Response<U>, TcpRequestError>
     where
-        A: ToSocketAddrs,
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>,
     {
         let response = request.into_protocol_bytes().and_then(|bytes| {
-            TcpStream::connect(address).and_then(|mut stream| {
+            let tls_connector = TlsConnector::new().unwrap();
+
+            TcpStream::connect(bootstrap_server.socket_addr()).and_then(|mut stream| {
+                //let mut stream = tls_connector.connect(bootstrap_server.domain(), stream).unwrap();
                 stream.write(bytes.as_slice()).and_then(|_| {
                     let mut result_size_buf: [u8; 4] = [0; 4];
                     stream

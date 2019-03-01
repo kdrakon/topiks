@@ -26,8 +26,7 @@ use state::*;
 use user_interface::ui;
 use util::io::IO;
 use util::utils::Flatten;
-
-pub struct BootstrapServer(pub String);
+use BootstrapServer;
 
 #[derive(Clone)]
 pub struct ConsumerGroup(pub String, pub findcoordinator_response::Coordinator);
@@ -144,9 +143,9 @@ fn to_event<T: ApiClientTrait + 'static>(
         UserInput(input) => UserInputUpdated(input),
         ToggleView(view) => ViewToggled(view),
 
-        GetMetadata(BootstrapServer(bootstrap), opt_consumer_group) => {
+        GetMetadata(bootstrap_server, opt_consumer_group) => {
             MetadataRetrieved(Box::from(move |state: &State| {
-                let metadata_response = retrieve_metadata(api_client_provider(), &bootstrap)
+                let metadata_response = retrieve_metadata(api_client_provider(), &bootstrap_server)
                     .into_result()
                     .map_err(|err| {
                         StateFNError::caused("Error encountered trying to retrieve topics", err)
@@ -161,7 +160,7 @@ fn to_event<T: ApiClientTrait + 'static>(
                             .map(|topic_metadata| {
                                 retrieve_partition_metadata_and_offsets(
                                     api_client_provider(),
-                                    &bootstrap,
+                                    &bootstrap_server,
                                     &metadata_response,
                                     &topic_metadata,
                                 )
@@ -209,7 +208,7 @@ fn to_event<T: ApiClientTrait + 'static>(
                             .map(|topic_name| {
                                 retrieve_topic_metadata(
                                     api_client_provider(),
-                                    &bootstrap,
+                                    &bootstrap_server,
                                     &topic_name,
                                 )
                                 .into_result()
@@ -330,7 +329,7 @@ fn to_event<T: ApiClientTrait + 'static>(
             NoQuery => TopicQuerySet(None),
         },
 
-        Delete(BootstrapServer(bootstrap)) => ResourceDeleted(Box::from(move |state: &State| {
+        Delete(bootstrap_server) => ResourceDeleted(Box::from(move |state: &State| {
             match state.current_view {
                 CurrentView::Partitions => {
                     Err(StateFNError::error("Partition deletion not supported"))
@@ -386,7 +385,7 @@ fn to_event<T: ApiClientTrait + 'static>(
                                     config_entries: existing_configs,
                                 };
 
-                                alter_config(api_client_provider(), &bootstrap, &resource).map(|_| {
+                                alter_config(api_client_provider(), &bootstrap_server, &resource).map(|_| {
                                     Deletion::Config(config_entry.config_name.clone())
                                 })
                             }
@@ -396,7 +395,7 @@ fn to_event<T: ApiClientTrait + 'static>(
             }
         })),
 
-        ModifyValue(BootstrapServer(bootstrap), new_value) => {
+        ModifyValue(bootstrap_server, new_value) => {
             ValueModified(Box::from(move |state: &State| match state.current_view {
                 CurrentView::Topics => Err(StateFNError::error(
                     "Modifications not supported for topics",
@@ -444,7 +443,7 @@ fn to_event<T: ApiClientTrait + 'static>(
                                     config_entries: existing_configs,
                                 };
 
-                                alter_config(api_client_provider(), &bootstrap, &resource)
+                                alter_config(api_client_provider(), &bootstrap_server, &resource)
                                     .map(|_| Modification::Config(config_entry.config_name.clone()))
                             }
                         }
@@ -583,14 +582,13 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
 
 fn retrieve_metadata<T: ApiClientTrait + 'static>(
     client: IO<T, TcpRequestError>,
-    bootstrap: &String,
+    bootstrap_server: &BootstrapServer,
 ) -> IO<metadata_response::MetadataResponse, TcpRequestError> {
-    let bootstrap = bootstrap.clone();
-
+    let bootstrap_server = bootstrap_server.clone();
     client.and_then_result(Box::new(move |client: T| {
         let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> = client
             .request(
-                bootstrap.clone(),
+                &bootstrap_server,
                 Request::of(metadata_request::MetadataRequest {
                     topics: None,
                     allow_auto_topic_creation: false,
@@ -610,10 +608,10 @@ fn retrieve_metadata<T: ApiClientTrait + 'static>(
 
 fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
     client: IO<T, TcpRequestError>,
-    bootstrap: &String,
+    bootstrap_server: &BootstrapServer,
     topic_name: &String,
 ) -> IO<describeconfigs_response::Resource, TcpRequestError> {
-    let bootstrap = bootstrap.clone();
+    let bootstrap_server = bootstrap_server.clone();
     let topic_name = topic_name.clone();
 
     client.and_then_result(Box::new(move |client: T| {
@@ -627,7 +625,7 @@ fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
             Response<describeconfigs_response::DescribeConfigsResponse>,
             TcpRequestError,
         > = client.request(
-            bootstrap.clone(),
+            &bootstrap_server,
             Request::of(describeconfigs_request::DescribeConfigsRequest {
                 resources: vec![resource],
                 include_synonyms: false,
@@ -664,7 +662,7 @@ fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
 
 fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
     client: IO<T, TcpRequestError>,
-    bootstrap: &String,
+    bootstrap_server: &BootstrapServer,
     metadata_response: &metadata_response::MetadataResponse,
     topic_metadata: &metadata_response::TopicMetadata,
 ) -> IO<
@@ -674,17 +672,17 @@ fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
     ),
     TcpRequestError,
 > {
-    let bootstrap = bootstrap.clone();
     let metadata_response = metadata_response.clone();
     let topic_metadata = topic_metadata.clone();
+    let bootstrap_server = bootstrap_server.clone();
 
     client.and_then_result(Box::new(move |client: T| {
         let partition_metadata = &topic_metadata.partition_metadata;
         let broker_id_to_host_map = metadata_response
             .brokers
             .iter()
-            .map(|b| (b.node_id, format!("{}:{}", b.host, b.port)))
-            .collect::<HashMap<i32, String>>();
+            .map(|b| (b.node_id, BootstrapServer(b.host.clone(), b.port)))
+            .collect::<HashMap<i32, BootstrapServer>>();
 
         let mut sorted_partition_metadata = partition_metadata.clone();
         sorted_partition_metadata.sort_by(|a, b| a.partition.cmp(&b.partition));
@@ -708,8 +706,7 @@ fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
                 (
                     broker_id_to_host_map
                         .get(broker_id)
-                        .map(|s| s.clone())
-                        .unwrap_or(bootstrap.clone()),
+                        .unwrap_or(&bootstrap_server),
                     listoffsets_request::Topic {
                         topic: topic_metadata.topic.clone(),
                         partitions: partitions
@@ -722,7 +719,7 @@ fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
                     },
                 )
             })
-            .collect::<Vec<(String, listoffsets_request::Topic)>>();
+            .collect::<Vec<(&BootstrapServer, listoffsets_request::Topic)>>();
 
         let partition_offset_responses = partition_offset_requests
             .into_iter()
@@ -770,6 +767,7 @@ fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
     let group_id = group_id.clone();
     let coordinator = coordinator.clone();
     let topic_metadata = topic_metadata.clone();
+    let bootstrap_server = BootstrapServer(coordinator.host.clone(), coordinator.port);
 
     client.and_then_result(Box::from(move |client: T| {
         let topic = offsetfetch_request::Topic {
@@ -786,7 +784,7 @@ fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
             TcpRequestError,
         > = client
             .request(
-                format!("{}:{}", coordinator.host, coordinator.port),
+                &bootstrap_server,
                 Request::of(offsetfetch_request::OffsetFetchRequest {
                     group_id: group_id.clone(),
                     topics: vec![topic.clone()],
@@ -834,14 +832,11 @@ fn delete_topic<T: ApiClientTrait + 'static>(
 ) -> IO<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> {
     let delete_topic_name = delete_topic_name.clone();
     let controller_broker = controller_broker.clone();
+    let bootstrap_server = BootstrapServer(controller_broker.host.clone(), controller_broker.port);
 
     client.and_then_result(Box::new(move |client: T| {
         client.request(
-            format!(
-                "{}:{}",
-                controller_broker.host.clone(),
-                controller_broker.port
-            ),
+            &bootstrap_server,
             Request::of(deletetopics_request::DeleteTopicsRequest {
                 topics: vec![delete_topic_name.clone()],
                 timeout: 30_000,
@@ -852,11 +847,11 @@ fn delete_topic<T: ApiClientTrait + 'static>(
 
 fn alter_config<T: ApiClientTrait + 'static>(
     client: IO<T, TcpRequestError>,
-    bootstrap: &String,
+    bootstrap_server: &BootstrapServer,
     resource: &alterconfigs_request::Resource,
 ) -> Result<(), StateFNError> {
-    let bootstrap = bootstrap.clone();
     let resource = resource.clone();
+    let bootstrap_server = bootstrap_server.clone();
 
     let alterconfigs_response: Result<
         Response<alterconfigs_response::AlterConfigsResponse>,
@@ -864,7 +859,7 @@ fn alter_config<T: ApiClientTrait + 'static>(
     > = client
         .and_then_result(Box::new(move |client: T| {
             client.request(
-                bootstrap.clone(),
+                &bootstrap_server,
                 Request::of(alterconfigs_request::AlterConfigsRequest {
                     resources: vec![resource.clone()],
                     validate_only: false,
