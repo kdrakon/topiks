@@ -35,11 +35,7 @@ impl TcpRequestError {
 }
 
 pub trait ApiClientTrait {
-    fn request<T, U>(
-        &self,
-        bootstrap_server: &BootstrapServer,
-        request: Request<T>,
-    ) -> Result<Response<U>, TcpRequestError>
+    fn request<T, U>(&self, bootstrap_server: &BootstrapServer, request: Request<T>) -> Result<Response<U>, TcpRequestError>
     where
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>;
@@ -57,11 +53,7 @@ impl ApiClient {
 }
 
 impl ApiClientTrait for ApiClient {
-    fn request<T, U>(
-        &self,
-        bootstrap_server: &BootstrapServer,
-        request: Request<T>,
-    ) -> Result<Response<U>, TcpRequestError>
+    fn request<T, U>(&self, bootstrap_server: &BootstrapServer, request: Request<T>) -> Result<Response<U>, TcpRequestError>
     where
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>,
@@ -73,24 +65,19 @@ impl ApiClientTrait for ApiClient {
                 //let mut stream = tls_connector.connect(bootstrap_server.domain(), stream).unwrap();
                 stream.write(bytes.as_slice()).and_then(|_| {
                     let mut result_size_buf: [u8; 4] = [0; 4];
-                    stream
-                        .read(&mut result_size_buf)
-                        .and_then(|_| Cursor::new(result_size_buf.to_vec()).read_i32::<BigEndian>())
-                        .and_then(|result_size| {
+                    stream.read(&mut result_size_buf).and_then(|_| Cursor::new(result_size_buf.to_vec()).read_i32::<BigEndian>()).and_then(
+                        |result_size| {
                             let mut message_buf: Vec<u8> = vec![0; result_size as usize];
                             stream.read_exact(&mut message_buf).map(|_| message_buf)
-                        })
+                        },
+                    )
                 })
             })
         });
 
-        response
-            .map_err(|e| TcpRequestError::of(format!("{}", e.description())))
-            .and_then(|bytes| {
-                //            println!("bytes: {:?}", utils::to_hex_array(&bytes));
-                bytes
-                    .into_protocol_type()
-                    .map_err(|e| TcpRequestError::of(e.error))
-            })
+        response.map_err(|e| TcpRequestError::of(format!("{}", e.description()))).and_then(|bytes| {
+            //            println!("bytes: {:?}", utils::to_hex_array(&bytes));
+            bytes.into_protocol_type().map_err(|e| TcpRequestError::of(e.error))
+        })
     }
 }

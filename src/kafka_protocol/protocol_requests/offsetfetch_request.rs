@@ -43,15 +43,10 @@ impl ProtocolSerializable for Topic {
         let topic = self.topic;
         let partitions = self.partitions;
         topic.into_protocol_bytes().and_then(|mut topic| {
-            partitions
-                .into_iter()
-                .map(|p| I32(p))
-                .collect::<Vec<ProtocolPrimitives>>()
-                .into_protocol_bytes()
-                .map(|ref mut partitions| {
-                    topic.append(partitions);
-                    topic
-                })
+            partitions.into_iter().map(|p| I32(p)).collect::<Vec<ProtocolPrimitives>>().into_protocol_bytes().map(|ref mut partitions| {
+                topic.append(partitions);
+                topic
+            })
         })
     }
 }

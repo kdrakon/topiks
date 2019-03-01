@@ -34,17 +34,12 @@ pub struct DeserializeError {
 
 impl DeserializeError {
     pub fn of(error: &str) -> DeserializeError {
-        DeserializeError {
-            error: String::from(error),
-        }
+        DeserializeError { error: String::from(error) }
     }
 }
 
 // Deserializer Functions
-fn deserialize_number<N>(
-    bytes: Vec<u8>,
-    f: fn(Cursor<Vec<u8>>) -> IOResult<N>,
-) -> ProtocolDeserializeResult<N> {
+fn deserialize_number<N>(bytes: Vec<u8>, f: fn(Cursor<Vec<u8>>) -> IOResult<N>) -> ProtocolDeserializeResult<N> {
     f(Cursor::new(bytes)).map_err(|e| DeserializeError::of(e.description()))
 }
 
@@ -62,10 +57,7 @@ pub fn de_i64(bytes: Vec<u8>) -> ProtocolDeserializeResult<i64> {
 
 pub type DynamicSize<T> = (T, Vec<u8>); // Vec<u8> == remaining bytes after
 
-pub fn de_array<T, F>(
-    bytes: Vec<u8>,
-    deserialize_t: F,
-) -> ProtocolDeserializeResult<DynamicSize<Vec<T>>>
+pub fn de_array<T, F>(bytes: Vec<u8>, deserialize_t: F) -> ProtocolDeserializeResult<DynamicSize<Vec<T>>>
 where
     F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<T>>,
 {
@@ -76,26 +68,20 @@ where
     })
 }
 
-fn de_array_transform<T, F>(
-    bytes: Vec<u8>,
-    elements: i32,
-    deserialize_t: F,
-) -> ProtocolDeserializeResult<DynamicSize<Vec<T>>>
+fn de_array_transform<T, F>(bytes: Vec<u8>, elements: i32, deserialize_t: F) -> ProtocolDeserializeResult<DynamicSize<Vec<T>>>
 where
     F: Fn(Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<T>>,
 {
     if elements <= 0 {
         Ok((vec![] as Vec<T>, bytes))
     } else {
-        deserialize_t(bytes).and_then(|(t, leftover_bytes)| {
-            match de_array_transform(leftover_bytes, elements - 1, deserialize_t) {
-                Ok((mut next_ts, leftover_bytes)) => {
-                    let mut ts = vec![t];
-                    ts.append(&mut next_ts);
-                    Ok((ts, leftover_bytes))
-                }
-                err @ Err(_) => err,
+        deserialize_t(bytes).and_then(|(t, leftover_bytes)| match de_array_transform(leftover_bytes, elements - 1, deserialize_t) {
+            Ok((mut next_ts, leftover_bytes)) => {
+                let mut ts = vec![t];
+                ts.append(&mut next_ts);
+                Ok((ts, leftover_bytes))
             }
+            err @ Err(_) => err,
         })
     }
 }
@@ -110,10 +96,7 @@ pub fn de_string(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<Option
 
             match from_utf8(string_bytes) {
                 Ok(string) => Ok((Some(String::from(string)), remaining_bytes)),
-                _ => Err(DeserializeError::of(&format!(
-                    "Failed to deserialize string {:?}",
-                    utils::to_hex_array(&string_bytes.to_vec())
-                ))),
+                _ => Err(DeserializeError::of(&format!("Failed to deserialize string {:?}", utils::to_hex_array(&string_bytes.to_vec())))),
             }
         }
     })
