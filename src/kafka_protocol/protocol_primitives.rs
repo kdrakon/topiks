@@ -31,13 +31,11 @@ impl ProtocolPrimitives {
 
 impl ProtocolSerializable for String {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
-        I16(self.len() as i16)
-            .into_protocol_bytes()
-            .and_then(|mut string_size| {
-                let mut string_bytes = self.as_bytes().to_vec();
-                string_size.append(&mut string_bytes);
-                Ok(string_size)
-            })
+        I16(self.len() as i16).into_protocol_bytes().and_then(|mut string_size| {
+            let mut string_bytes = self.as_bytes().to_vec();
+            string_size.append(&mut string_bytes);
+            Ok(string_size)
+        })
     }
 }
 
@@ -71,17 +69,13 @@ where
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
         let array_length = I32(self.len() as i32).into_protocol_bytes();
 
-        let sequenced = self
-            .into_iter()
-            .map(|t| t.into_protocol_bytes())
-            .collect::<Result<Vec<Vec<u8>>>>();
+        let sequenced = self.into_iter().map(|t| t.into_protocol_bytes()).collect::<Result<Vec<Vec<u8>>>>();
 
         let array_in_bytes = sequenced.map(|ref s| {
-            s.into_iter()
-                .fold(vec![] as Vec<u8>, |mut acc: Vec<u8>, v| {
-                    acc.append(&mut v.clone());
-                    acc
-                })
+            s.into_iter().fold(vec![] as Vec<u8>, |mut acc: Vec<u8>, v| {
+                acc.append(&mut v.clone());
+                acc
+            })
         });
 
         array_length.and_then(|mut payload| {
@@ -111,40 +105,18 @@ mod tests {
 
     #[test]
     fn verify_array_and_primitives() {
-        assert_eq!(
-            vec![0, 0, 0, 3, 1, 2, 3],
-            vec![I8(1), I8(2), I8(3)].into_protocol_bytes().unwrap()
-        );
-        assert_eq!(
-            vec![0, 0, 0, 3, 0, 1, 0, 2, 0, 3],
-            vec![I16(1), I16(2), I16(3)].into_protocol_bytes().unwrap()
-        );
-        assert_eq!(
-            vec![0, 0, 0, 1, 0, 0, 0, 255],
-            vec![I32(255)].into_protocol_bytes().unwrap()
-        );
-        assert_eq!(
-            vec![0, 0, 0, 1, 0, 1, 0, 0],
-            vec![I32(65536)].into_protocol_bytes().unwrap()
-        );
+        assert_eq!(vec![0, 0, 0, 3, 1, 2, 3], vec![I8(1), I8(2), I8(3)].into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 3, 0, 1, 0, 2, 0, 3], vec![I16(1), I16(2), I16(3)].into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 1, 0, 0, 0, 255], vec![I32(255)].into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 1, 0, 1, 0, 0], vec![I32(65536)].into_protocol_bytes().unwrap());
 
-        assert_eq!(
-            vec![0, 0, 0, 1, 1],
-            vec![Boolean(true)].into_protocol_bytes().unwrap()
-        );
-        assert_eq!(
-            vec![0, 0, 0, 2, 0, 1],
-            vec![Boolean(false), Boolean(true)]
-                .into_protocol_bytes()
-                .unwrap()
-        );
+        assert_eq!(vec![0, 0, 0, 1, 1], vec![Boolean(true)].into_protocol_bytes().unwrap());
+        assert_eq!(vec![0, 0, 0, 2, 0, 1], vec![Boolean(false), Boolean(true)].into_protocol_bytes().unwrap());
 
         // array of 2, string of 3, 3 characters, string of 3, 3 characters
         assert_eq!(
             vec![0, 0, 0, 2, 0, 3, 102, 111, 111, 0, 3, 98, 97, 114],
-            vec![String::from("foo"), String::from("bar")]
-                .into_protocol_bytes()
-                .unwrap()
+            vec![String::from("foo"), String::from("bar")].into_protocol_bytes().unwrap()
         );
     }
 }

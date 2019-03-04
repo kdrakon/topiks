@@ -42,14 +42,9 @@ pub enum TopicListItem {
 impl SelectableListItem for TopicListItem {
     fn display(&self) -> String {
         match &self {
-            TopicListItem::Normal(label, partitions) => format!(
-                "{}{} [{}{}{}]",
-                color::Fg(color::Cyan),
-                &label,
-                color::Fg(color::LightYellow),
-                partitions,
-                color::Fg(color::Cyan)
-            ),
+            TopicListItem::Normal(label, partitions) => {
+                format!("{}{} [{}{}{}]", color::Fg(color::Cyan), &label, color::Fg(color::LightYellow), partitions, color::Fg(color::Cyan))
+            }
             TopicListItem::Internal(label, partitions) => format!(
                 "{}{}{} [{}{}{}]",
                 color::Fg(color::LightMagenta),
@@ -59,29 +54,16 @@ impl SelectableListItem for TopicListItem {
                 partitions,
                 color::Fg(color::Cyan)
             ),
-            TopicListItem::Deleted(label, partitions) => format!(
-                "{}{}{} [{}]",
-                color::Fg(color::Black),
-                color::Bg(color::LightRed),
-                &label,
-                partitions
-            ),
-            TopicListItem::Selected(topic_list_item) => format!(
-                "{}{}",
-                color::Bg(color::LightBlack),
-                topic_list_item.display()
-            ),
+            TopicListItem::Deleted(label, partitions) => {
+                format!("{}{}{} [{}]", color::Fg(color::Black), color::Bg(color::LightRed), &label, partitions)
+            }
+            TopicListItem::Selected(topic_list_item) => format!("{}{}", color::Bg(color::LightBlack), topic_list_item.display()),
         }
     }
 }
 
 pub enum PartitionListItem {
-    Normal {
-        partition: i32,
-        partition_metadata: PartitionMetadata,
-        consumer_offset: i64,
-        partition_offset: i64,
-    },
+    Normal { partition: i32, partition_metadata: PartitionMetadata, consumer_offset: i64, partition_offset: i64 },
     Selected(Box<PartitionListItem>),
 }
 
@@ -89,12 +71,7 @@ impl SelectableListItem for PartitionListItem {
     fn display(&self) -> String {
         use self::PartitionListItem::*;
         match &self {
-            Normal {
-                partition,
-                partition_metadata,
-                consumer_offset,
-                partition_offset,
-            } => format!(
+            Normal { partition, partition_metadata, consumer_offset, partition_offset } => format!(
                 "{}▶ {}{:<4} {}{}{} C:{:10} OF:{:10} L:{} R:{} ISR:{} O:{}{}",
                 color::Fg(color::LightYellow),
                 color::Fg(color::White),
@@ -102,21 +79,13 @@ impl SelectableListItem for PartitionListItem {
                 color::Fg(color::Green),
                 offset_progress_bar::new(*consumer_offset, *partition_offset, 50),
                 color::Fg(color::White),
-                if *consumer_offset > 0 {
-                    format!("{}", consumer_offset)
-                } else {
-                    String::from("--")
-                },
+                if *consumer_offset > 0 { format!("{}", consumer_offset) } else { String::from("--") },
                 format!("{}", partition_offset),
                 partition_metadata.leader,
                 partition_metadata.replicas.as_csv(),
                 partition_metadata.isr.as_csv(),
                 color::Fg(color::LightRed),
-                if !partition_metadata.offline_replicas.is_empty() {
-                    partition_metadata.offline_replicas.as_csv()
-                } else {
-                    String::from("--")
-                }
+                if !partition_metadata.offline_replicas.is_empty() { partition_metadata.offline_replicas.as_csv() } else { String::from("--") }
             ),
             Selected(item) => format!("{}{}", color::Bg(color::LightBlack), item.display()),
         }
@@ -135,23 +104,11 @@ impl SelectableListItem for TopicConfigurationItem {
     fn display(&self) -> String {
         use self::TopicConfigurationItem::*;
         match &self {
-            Config { name, value } => {
-                format!("{}: {}", name, value.as_ref().unwrap_or(&format!("")))
-            }
+            Config { name, value } => format!("{}: {}", name, value.as_ref().unwrap_or(&format!(""))),
             Selected(config) => format!("{}{}", color::Bg(color::LightBlack), config.display()),
             Override(config) => format!("{}{}", color::Fg(color::LightMagenta), config.display()),
-            Deleted(config) => format!(
-                "{}{} {}",
-                color::Bg(color::LightBlue),
-                config.display(),
-                "[refresh]"
-            ),
-            Modified(config) => format!(
-                "{}{} {}",
-                color::Bg(color::LightBlue),
-                config.display(),
-                "[refresh]"
-            ),
+            Deleted(config) => format!("{}{} {}", color::Bg(color::LightBlue), config.display(), "[refresh]"),
+            Modified(config) => format!("{}{} {}", color::Bg(color::LightBlue), config.display(), "[refresh]"),
         }
     }
 }

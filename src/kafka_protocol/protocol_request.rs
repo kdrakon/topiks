@@ -14,12 +14,7 @@ pub struct Request<T: ProtocolSerializable> {
 impl<A: ProtocolSerializable + KafkaApiVersioned> Request<A> {
     pub fn of(request_message: A) -> Request<A> {
         Request {
-            header: RequestHeader {
-                api_key: A::api_key(),
-                api_version: A::version(),
-                correlation_id: 42,
-                client_id: String::from("topiks"),
-            },
+            header: RequestHeader { api_key: A::api_key(), api_version: A::version(), correlation_id: 42, client_id: String::from("topiks") },
             request_message,
         }
     }
@@ -40,12 +35,10 @@ where
         });
 
         header_and_request.and_then(|ref mut hr| {
-            I32(hr.len() as i32)
-                .into_protocol_bytes()
-                .map(|mut message_size| {
-                    message_size.append(hr);
-                    message_size
-                })
+            I32(hr.len() as i32).into_protocol_bytes().map(|mut message_size| {
+                message_size.append(hr);
+                message_size
+            })
         })
     }
 }
@@ -62,25 +55,17 @@ pub struct RequestHeader {
 
 impl ProtocolSerializable for RequestHeader {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
-        I16(self.api_key)
-            .into_protocol_bytes()
-            .and_then(|mut api_key| {
-                I16(self.api_version)
-                    .into_protocol_bytes()
-                    .and_then(|ref mut api_version| {
-                        I32(self.correlation_id).into_protocol_bytes().and_then(
-                            |ref mut correlation_id| {
-                                self.client_id
-                                    .into_protocol_bytes()
-                                    .and_then(|ref mut client_id| {
-                                        api_key.append(api_version);
-                                        api_key.append(correlation_id);
-                                        api_key.append(client_id);
-                                        Ok(api_key.clone())
-                                    })
-                            },
-                        )
+        I16(self.api_key).into_protocol_bytes().and_then(|mut api_key| {
+            I16(self.api_version).into_protocol_bytes().and_then(|ref mut api_version| {
+                I32(self.correlation_id).into_protocol_bytes().and_then(|ref mut correlation_id| {
+                    self.client_id.into_protocol_bytes().and_then(|ref mut client_id| {
+                        api_key.append(api_version);
+                        api_key.append(correlation_id);
+                        api_key.append(client_id);
+                        Ok(api_key.clone())
                     })
+                })
             })
+        })
     }
 }

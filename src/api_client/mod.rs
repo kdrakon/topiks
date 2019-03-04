@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -6,45 +5,42 @@ use std::io::{Cursor, Read, Write};
 use std::net::*;
 
 use byteorder::{BigEndian, ReadBytesExt};
+use native_tls::TlsConnector;
 
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_serializable::*;
 use util::io::IO;
+use BootstrapServer;
 
 #[derive(Debug)]
-pub struct TcpRequestError {
+pub struct ApiRequestError {
     pub error: String,
 }
 
-impl Display for TcpRequestError {
+impl Display for ApiRequestError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "TCP Request Error: {}", self.error)
+        write!(f, "API Request Error: {}", self.error)
     }
 }
 
-impl TcpRequestError {
-    pub fn of(error: String) -> TcpRequestError {
-        TcpRequestError { error }
+impl ApiRequestError {
+    pub fn of(error: String) -> ApiRequestError {
+        ApiRequestError { error }
     }
-    pub fn from(error: &str) -> TcpRequestError {
-        TcpRequestError::of(String::from(error))
+    pub fn from(error: &str) -> ApiRequestError {
+        ApiRequestError::of(String::from(error))
     }
 }
 
 pub trait ApiClientTrait {
-    fn request<A, T, U>(
-        &self,
-        address: A,
-        request: Request<T>,
-    ) -> Result<Response<U>, TcpRequestError>
+    fn request<T, U>(&self, bootstrap_server: &BootstrapServer, request: Request<T>) -> Result<Response<U>, ApiRequestError>
     where
-        A: ToSocketAddrs,
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>;
 }
 
-pub type ApiClientProvider<T> = Box<Fn() -> IO<T, TcpRequestError>>;
+pub type ApiClientProvider<T> = Box<Fn() -> IO<T, ApiRequestError>>;
 
 #[derive(Clone)]
 pub struct ApiClient {}
@@ -56,38 +52,50 @@ impl ApiClient {
 }
 
 impl ApiClientTrait for ApiClient {
-    fn request<A, T, U>(
-        &self,
-        address: A,
-        request: Request<T>,
-    ) -> Result<Response<U>, TcpRequestError>
+    fn request<T, U>(&self, bootstrap_server: &BootstrapServer, request: Request<T>) -> Result<Response<U>, ApiRequestError>
     where
-        A: ToSocketAddrs,
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>,
     {
-        let response = request.into_protocol_bytes().and_then(|bytes| {
-            TcpStream::connect(address).and_then(|mut stream| {
-                stream.write(bytes.as_slice()).and_then(|_| {
-                    let mut result_size_buf: [u8; 4] = [0; 4];
-                    stream
-                        .read(&mut result_size_buf)
-                        .and_then(|_| Cursor::new(result_size_buf.to_vec()).read_i32::<BigEndian>())
-                        .and_then(|result_size| {
-                            let mut message_buf: Vec<u8> = vec![0; result_size as usize];
-                            stream.read_exact(&mut message_buf).map(|_| message_buf)
-                        })
+        let request_bytes = request.into_protocol_bytes().map_err(|err| ApiRequestError::of(format!("Could not serialize request. {}", err)));
+
+        fn tcp_stream(bootstrap_server: &BootstrapServer) -> Result<TcpStream, ApiRequestError> {
+            TcpStream::connect(bootstrap_server.as_socket_addr()).map_err(|err| ApiRequestError::of(err.to_string()))
+        }
+
+        fn write_bytes<S: Write>(stream: &mut S, bytes: Vec<u8>) -> Result<usize, ApiRequestError> {
+            stream.write(bytes.as_slice()).map_err(|err| ApiRequestError::of(err.to_string()))
+        }
+
+        fn read_bytes<S: Read>(stream: &mut S) -> Result<Vec<u8>, ApiRequestError> {
+            let mut result_size_buf: [u8; 4] = [0; 4];
+            stream
+                .read(&mut result_size_buf)
+                .and_then(|_| Cursor::new(result_size_buf.to_vec()).read_i32::<BigEndian>())
+                .and_then(|result_size| {
+                    let mut message_buf: Vec<u8> = vec![0; result_size as usize];
+                    stream.read_exact(&mut message_buf).map(|_| message_buf)
                 })
-            })
+                .map_err(|err| ApiRequestError::of(err.to_string()))
+        }
+
+        let response = request_bytes.and_then(|bytes| match bootstrap_server.use_tls {
+            false => tcp_stream(bootstrap_server).and_then(|ref mut stream| write_bytes(stream, bytes).and_then(|_| read_bytes(stream))),
+            true => tcp_stream(bootstrap_server).and_then(|stream| {
+                TlsConnector::new()
+                    .map_err(|err| ApiRequestError::of(err.to_string()))
+                    .and_then(|tls_connector| {
+                        tls_connector
+                            .connect(bootstrap_server.domain.as_str(), stream)
+                            .map_err(|err| ApiRequestError::of(format!("TLS handshake error. {}", err)))
+                    })
+                    .and_then(|ref mut stream| write_bytes(stream, bytes).and_then(|_| read_bytes(stream)))
+            }),
         });
 
-        response
-            .map_err(|e| TcpRequestError::of(format!("{}", e.description())))
-            .and_then(|bytes| {
-                //            println!("bytes: {:?}", utils::to_hex_array(&bytes));
-                bytes
-                    .into_protocol_type()
-                    .map_err(|e| TcpRequestError::of(e.error))
-            })
+        response.and_then(|bytes| {
+            //            println!("bytes: {:?}", utils::to_hex_array(&bytes));
+            bytes.into_protocol_type().map_err(|e| ApiRequestError::of(e.error))
+        })
     }
 }

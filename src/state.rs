@@ -69,31 +69,17 @@ impl State {
     }
 
     pub fn selected_topic_name(&self) -> Option<String> {
-        self.metadata.as_ref().and_then(|metadata| {
-            metadata
-                .topic_metadata
-                .get(self.selected_index)
-                .map(|m: &TopicMetadata| m.topic.clone())
-        })
+        self.metadata.as_ref().and_then(|metadata| metadata.topic_metadata.get(self.selected_index).map(|m: &TopicMetadata| m.topic.clone()))
     }
 
     pub fn selected_topic_metadata(&self) -> Option<TopicMetadata> {
-        self.metadata.as_ref().and_then(|metadata| {
-            metadata
-                .topic_metadata
-                .get(self.selected_index)
-                .map(|topic_metadata| topic_metadata.clone())
-        })
+        self.metadata.as_ref().and_then(|metadata| metadata.topic_metadata.get(self.selected_index).map(|topic_metadata| topic_metadata.clone()))
     }
 
     pub fn find_next_index(&self, in_reverse: bool) -> Option<usize> {
         self.topic_name_query.as_ref().and_then(|query| {
             self.metadata.as_ref().and_then(|metadata| {
-                let indexed = metadata
-                    .topic_metadata
-                    .iter()
-                    .zip(0..metadata.topic_metadata.len())
-                    .collect::<Vec<(&TopicMetadata, usize)>>();
+                let indexed = metadata.topic_metadata.iter().zip(0..metadata.topic_metadata.len()).collect::<Vec<(&TopicMetadata, usize)>>();
                 let slice = if self.selected_index < metadata.topic_metadata.len() {
                     if in_reverse {
                         let mut vec = indexed.as_slice()[0..self.selected_index].to_vec();
@@ -129,13 +115,7 @@ pub struct TopicInfoState {
 
 impl TopicInfoState {
     pub fn new(topic_metadata: TopicMetadata, config_resource: Resource) -> TopicInfoState {
-        TopicInfoState {
-            topic_metadata,
-            config_resource,
-            selected_index: 0,
-            configs_marked_deleted: vec![],
-            configs_marked_modified: vec![],
-        }
+        TopicInfoState { topic_metadata, config_resource, selected_index: 0, configs_marked_deleted: vec![], configs_marked_modified: vec![] }
     }
 }
 
@@ -153,11 +133,6 @@ impl PartitionInfoState {
         partition_offsets: HashMap<i32, listoffsets_response::PartitionResponse>,
         consumer_offsets: HashMap<i32, offsetfetch_response::PartitionResponse>,
     ) -> PartitionInfoState {
-        PartitionInfoState {
-            selected_index: 0,
-            partition_metadata,
-            partition_offsets,
-            consumer_offsets,
-        }
+        PartitionInfoState { selected_index: 0, partition_metadata, partition_offsets, consumer_offsets }
     }
 }

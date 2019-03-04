@@ -7,6 +7,7 @@ authors = ["Sean Policarpio <sean@policarp.io>"]
 byteorder = "1.2.1"
 termion = "1.5.1"
 clap = "2.31.2"
+native-tls = "0.2.2"
 
 [dev-dependencies]
 proptest = "0.8.7"

@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::net::ToSocketAddrs;
 
 use api_client::ApiClientTrait;
-use api_client::TcpRequestError;
+use api_client::ApiRequestError;
 use event_bus;
 use event_bus::*;
 use kafka_protocol::protocol_request::Request;
@@ -11,28 +10,19 @@ use kafka_protocol::protocol_serializable::ProtocolDeserializable;
 use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use state::State;
 use util::io::IO;
+use BootstrapServer;
 
 struct FakeApiClient(HashMap<i16, Vec<u8>>); // ApiKey => Byte Response
 
 impl ApiClientTrait for FakeApiClient {
-    fn request<A, T, U>(
-        &self,
-        _address: A,
-        request: Request<T>,
-    ) -> Result<Response<U>, TcpRequestError>
+    fn request<T, U>(&self, bootstrap_server: &BootstrapServer, request: Request<T>) -> Result<Response<U>, ApiRequestError>
     where
-        A: ToSocketAddrs,
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>,
     {
-        let response = self
-            .0
-            .get(&request.header.api_key)
-            .expect("ApiKey response not defined");
-        response
-            .clone()
-            .into_protocol_type()
-            .map_err(|e| TcpRequestError::of(e.error))
+        dbg!(bootstrap_server);
+        let response = self.0.get(&request.header.api_key).expect("ApiKey response not defined");
+        response.clone().into_protocol_type().map_err(|e| ApiRequestError::of(e.error))
     }
 }
 
@@ -51,10 +41,7 @@ fn get_metadata() {
         }))
     });
 
-    match event_bus::to_event(
-        Message::GetMetadata(BootstrapServer(String::from("fake")), None),
-        test_api_client_provider,
-    ) {
+    match event_bus::to_event(Message::GetMetadata(BootstrapServer::of(String::from("fake"), 9092, false), None), test_api_client_provider) {
         Event::MetadataRetrieved(statefn) => match statefn(&state) {
             Ok(_metadata_payload) => (),
             Err(_e) => panic!(),

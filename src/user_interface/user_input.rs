@@ -7,11 +7,7 @@ use termion::input::TermRead;
 use event_bus::Message;
 use event_bus::Message::UserInput;
 
-pub fn read(
-    label: &str,
-    (_cursor_x, _cursor_y): (u16, u16),
-    sender: Sender<Message>,
-) -> Result<Option<String>, ()> {
+pub fn read(label: &str, (_cursor_x, _cursor_y): (u16, u16), sender: Sender<Message>) -> Result<Option<String>, ()> {
     let stdin = std::io::stdin();
     sender.send(UserInput(String::from(label))).unwrap();
 
@@ -36,13 +32,7 @@ pub fn read(
             _ => {} // ignore everything else
         }
 
-        sender
-            .send(UserInput(format!(
-                "{}{}",
-                label,
-                input.iter().collect::<String>()
-            )))
-            .unwrap();
+        sender.send(UserInput(format!("{}{}", label, input.iter().collect::<String>()))).unwrap();
     }
 
     sender.send(UserInput(String::from(""))).unwrap();

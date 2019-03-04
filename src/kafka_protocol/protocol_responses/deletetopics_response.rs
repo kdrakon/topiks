@@ -33,25 +33,15 @@ impl ProtocolDeserializable<DeleteTopicsResponse> for Vec<u8> {
                 if !remaining_bytes.is_empty() {
                     panic!("Unexpected bytes deserializing DeleteTopicsResponse")
                 }
-                DeleteTopicsResponse {
-                    throttle_time_ms,
-                    topic_error_codes,
-                }
+                DeleteTopicsResponse { throttle_time_ms, topic_error_codes }
             })
         })
     }
 }
 
-fn deserialize_topic_error_codes(
-    bytes: Vec<u8>,
-) -> ProtocolDeserializeResult<DynamicSize<TopicErrorCode>> {
+fn deserialize_topic_error_codes(bytes: Vec<u8>) -> ProtocolDeserializeResult<DynamicSize<TopicErrorCode>> {
     de_string(bytes).and_then(|(topic, remaining_bytes)| {
         let topic = topic.expect("Unexpected missing topic name in TopicErrorCode");
-        de_i16(remaining_bytes[0..2].to_vec()).map(|error_code| {
-            (
-                TopicErrorCode { topic, error_code },
-                remaining_bytes[2..].to_vec(),
-            )
-        })
+        de_i16(remaining_bytes[0..2].to_vec()).map(|error_code| (TopicErrorCode { topic, error_code }, remaining_bytes[2..].to_vec()))
     })
 }
