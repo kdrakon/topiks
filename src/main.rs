@@ -18,7 +18,7 @@ use termion::terminal_size;
 
 use api_client::ApiClient;
 use api_client::ApiClientTrait;
-use api_client::TcpRequestError;
+use api_client::ApiRequestError;
 use event_bus::ConsumerGroup;
 use event_bus::Message;
 use event_bus::MoveSelection::*;
@@ -41,15 +41,26 @@ pub mod util;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-#[derive(Clone)]
-pub struct BootstrapServer(pub String, pub i32);
+#[derive(Clone, Debug)]
+pub struct BootstrapServer {
+    pub domain: String,
+    pub port: i32,
+    pub use_tls: bool,
+}
 
 impl BootstrapServer {
-    fn domain(&self) -> &str {
-        &self.0
+    fn of(domain: String, port: i32, use_tls: bool) -> BootstrapServer {
+        BootstrapServer { domain, port, use_tls }
     }
-    fn socket_addr(&self) -> String {
-        format!("{}:{}", self.0, self.1)
+    fn from_arg(addr_arg: &str, use_tls: bool) -> Option<BootstrapServer> {
+        let split: Vec<&str> = addr_arg.split(':').collect::<Vec<&str>>();
+        match split.as_slice() {
+            [domain_ip, port] => port.parse::<i32>().ok().map(|port| BootstrapServer::of(String::from(*domain_ip), port, use_tls)),
+            _ => None,
+        }
+    }
+    fn as_socket_addr(&self) -> String {
+        format!("{}:{}", self.domain, self.port)
     }
 }
 
@@ -67,15 +78,20 @@ fn main() -> Result<(), u8> {
 
     let matches = App::new("topiks")
         .version(VERSION)
-        .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker to connect to"))
+        .arg(Arg::with_name("bootstrap-server").required(true).takes_value(true).help("A single Kafka broker [DOMAIN|IP]:PORT"))
+        .arg(Arg::with_name("tls").long("tls").required(false).help("Enable TLS"))
         .arg(Arg::with_name("consumer-group").long("consumer-group").short("c").takes_value(true).help("Consumer group for fetching offsets"))
         .arg(Arg::with_name("delete").short("D").help("Enable topic/config deletion"))
         .arg(Arg::with_name("no-delete-confirmation").long("no-delete-confirmation").help("Disable delete confirmation <Danger!>"))
         .arg(Arg::with_name("modify").short("M").help("Enable modification of topic configurations and other resources"))
         .get_matches();
 
+    let enable_tls = matches.is_present("tls");
+    let bootstrap_server =
+        BootstrapServer::from_arg(matches.value_of("bootstrap-server").unwrap(), enable_tls).expect("Could not parse bootstrap server");
+
     let app_config = AppConfig {
-        bootstrap_server: BootstrapServer(String::from(matches.value_of("bootstrap-server").unwrap()), 9092), // TODO need to extract port
+        bootstrap_server,
         consumer_group: matches.value_of("consumer-group"),
         request_timeout_ms: 30_000,
         deletion_allowed: matches.is_present("delete"),
@@ -96,7 +112,7 @@ fn main() -> Result<(), u8> {
         let bootstrap_server = || app_config.bootstrap_server.clone();
 
         let consumer_group = app_config.consumer_group.clone().and_then(|cg| {
-            let find_coordinator_response: Result<Response<FindCoordinatorResponse>, TcpRequestError> = ApiClient::new().request(
+            let find_coordinator_response: Result<Response<FindCoordinatorResponse>, ApiRequestError> = ApiClient::new().request(
                 &app_config.bootstrap_server,
                 Request::of(FindCoordinatorRequest { coordinator_key: String::from(cg), coordinator_type: CoordinatorType::Group as i8 }),
             );
