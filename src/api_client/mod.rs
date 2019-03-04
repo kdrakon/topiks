@@ -57,6 +57,8 @@ impl ApiClientTrait for ApiClient {
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>,
     {
+        let _api_key = request.header.api_key;
+        let _api_key_version = request.header.api_version;
         let request_bytes = request.into_protocol_bytes().map_err(|err| ApiRequestError::of(format!("Could not serialize request. {}", err)));
 
         fn tcp_stream(bootstrap_server: &BootstrapServer) -> Result<TcpStream, ApiRequestError> {
@@ -93,9 +95,12 @@ impl ApiClientTrait for ApiClient {
             }),
         });
 
-        response.and_then(|bytes| {
-            //            println!("bytes: {:?}", utils::to_hex_array(&bytes));
-            bytes.into_protocol_type().map_err(|e| ApiRequestError::of(e.error))
-        })
+        // DEBUG response
+        response.iter().for_each(|bytes| {
+            use util::utils;
+            println!("bytes for API key {}:v{}: {:?}", _api_key, _api_key_version, utils::to_hex_array(&bytes));
+        });
+
+        response.and_then(|bytes| bytes.into_protocol_type().map_err(|e| ApiRequestError::of(e.error)))
     }
 }
