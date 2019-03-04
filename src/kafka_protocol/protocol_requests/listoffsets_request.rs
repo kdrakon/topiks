@@ -35,19 +35,15 @@ impl ProtocolSerializable for ListOffsetsRequest {
         let replica_id = self.replica_id;
         let isolation_level = self.isolation_level;
         let topics = self.topics;
-        I32(replica_id)
-            .into_protocol_bytes()
-            .and_then(|mut replica_id| {
-                I8(isolation_level)
-                    .into_protocol_bytes()
-                    .and_then(|ref mut isolation_level| {
-                        topics.into_protocol_bytes().map(|ref mut topics| {
-                            replica_id.append(isolation_level);
-                            replica_id.append(topics);
-                            replica_id
-                        })
-                    })
+        I32(replica_id).into_protocol_bytes().and_then(|mut replica_id| {
+            I8(isolation_level).into_protocol_bytes().and_then(|ref mut isolation_level| {
+                topics.into_protocol_bytes().map(|ref mut topics| {
+                    replica_id.append(isolation_level);
+                    replica_id.append(topics);
+                    replica_id
+                })
             })
+        })
     }
 }
 
@@ -68,15 +64,11 @@ impl ProtocolSerializable for Partition {
     fn into_protocol_bytes(self) -> ProtocolSerializeResult {
         let partition = self.partition;
         let timestamp = self.timestamp;
-        I32(partition)
-            .into_protocol_bytes()
-            .and_then(|mut partition| {
-                I64(timestamp)
-                    .into_protocol_bytes()
-                    .map(|ref mut timestamp| {
-                        partition.append(timestamp);
-                        partition
-                    })
+        I32(partition).into_protocol_bytes().and_then(|mut partition| {
+            I64(timestamp).into_protocol_bytes().map(|ref mut timestamp| {
+                partition.append(timestamp);
+                partition
             })
+        })
     }
 }
