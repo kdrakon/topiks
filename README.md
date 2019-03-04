@@ -11,10 +11,10 @@ Much of my time with Kafka clusters involves working directly on either brokers 
 
 ## Features
 - list topics, configurations, and offsets
-- interactively create topics
+- _interactively create topics (**WIP**)_
 - selectively delete topics
 - modify a topics configuration, replication factor
-- increase the partitions for a topic
+- _increase the partitions for a topic (**WIP**)_
 - get offset and lag for a consumer group 
 
 ## Usage
@@ -27,12 +27,13 @@ FLAGS:
     -h, --help                      Prints help information
     -M                              Enable modification of topic configurations and other resources
         --no-delete-confirmation    Disable delete confirmation <Danger!>
+        --tls                       Enable TLS
     -V, --version                   Prints version information
 
 OPTIONS:
     -c, --consumer-group <consumer-group>    Consumer group for fetching offsets
 
 ARGS:
-    <bootstrap-server>    A single Kafka broker to connect to
+    <bootstrap-server>    A single Kafka broker [DOMAIN|IP]:PORT
 ```
 
