@@ -1,5 +1,5 @@
 use api_client::ApiClientTrait;
-use api_client::TcpRequestError;
+use api_client::ApiRequestError;
 use kafka_protocol::api_verification::ApiVerificationFailure::ApiNotSupported;
 use kafka_protocol::api_verification::ApiVerificationFailure::ApiVersionNotSupported;
 use kafka_protocol::api_verification::ApiVerificationFailure::NoVerification;
@@ -76,7 +76,7 @@ pub fn apply<T: ApiClientTrait + 'static>(
     bootstrap_server: &BootstrapServer,
     queries: &Vec<ApiVersionQuery>,
 ) -> Result<(), Vec<ApiVerificationFailure>> {
-    let result: Result<Response<ApiVersionResponse>, TcpRequestError> = api_client.request(bootstrap_server, Request::of(ApiVersionsRequest {}));
+    let result: Result<Response<ApiVersionResponse>, ApiRequestError> = api_client.request(bootstrap_server, Request::of(ApiVersionsRequest {}));
 
     let verification = result.map(|response| response.response_message.api_versions).map(|api_versions| {
         let api_errors: Vec<ApiVerificationFailure> = vec![];

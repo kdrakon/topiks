@@ -9,7 +9,7 @@ use std::thread;
 use api_client::ApiClient;
 use api_client::ApiClientProvider;
 use api_client::ApiClientTrait;
-use api_client::TcpRequestError;
+use api_client::ApiRequestError;
 use event_bus::Event::*;
 use event_bus::Message::Delete;
 use event_bus::Message::*;
@@ -142,18 +142,22 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                 .into_result()
                                 .and_then(|(partition_metadata, partition_offsets)| match opt_consumer_group {
                                     None => Ok(MetadataPayload::PartitionsMetadata(metadata_response, partition_metadata, partition_offsets, None)),
-                                    Some(ConsumerGroup(ref group_id, ref coordinator)) => {
-                                        retrieve_consumer_offsets(api_client_provider(), group_id, coordinator, &topic_metadata).into_result().map(
-                                            |consumer_offsets| {
-                                                MetadataPayload::PartitionsMetadata(
-                                                    metadata_response,
-                                                    partition_metadata,
-                                                    partition_offsets,
-                                                    Some(consumer_offsets),
-                                                )
-                                            },
+                                    Some(ConsumerGroup(ref group_id, ref coordinator)) => retrieve_consumer_offsets(
+                                        api_client_provider(),
+                                        group_id,
+                                        coordinator,
+                                        &topic_metadata,
+                                        bootstrap_server.use_tls,
+                                    )
+                                    .into_result()
+                                    .map(|consumer_offsets| {
+                                        MetadataPayload::PartitionsMetadata(
+                                            metadata_response,
+                                            partition_metadata,
+                                            partition_offsets,
+                                            Some(consumer_offsets),
                                         )
-                                    }
+                                    }),
                                 })
                                 .map_err(|err| StateFNError::caused("Error retrieving partition metadata", err))
                         })
@@ -291,8 +295,9 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                     .first()
                                     .map(|controller_broker| {
                                         let delete_topic_name = delete_topic_metadata.topic.clone();
-                                        let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> =
-                                            delete_topic(api_client_provider(), &delete_topic_name, &controller_broker).into_result();
+                                        let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, ApiRequestError> =
+                                            delete_topic(api_client_provider(), &delete_topic_name, &controller_broker, bootstrap_server.use_tls)
+                                                .into_result();
                                         match result {
                                             Ok(response) => {
                                                 let map = response
@@ -306,7 +311,7 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                                 } else {
                                                     Err(StateFNError::caused(
                                                         "Failed to delete topic",
-                                                        TcpRequestError::of(format!("Non-zero topic error code encountered: {:?}", map)),
+                                                        ApiRequestError::of(format!("Non-zero topic error code encountered: {:?}", map)),
                                                     ))
                                                 }
                                             }
@@ -488,12 +493,12 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
 }
 
 fn retrieve_metadata<T: ApiClientTrait + 'static>(
-    client: IO<T, TcpRequestError>,
+    client: IO<T, ApiRequestError>,
     bootstrap_server: &BootstrapServer,
-) -> IO<metadata_response::MetadataResponse, TcpRequestError> {
+) -> IO<metadata_response::MetadataResponse, ApiRequestError> {
     let bootstrap_server = bootstrap_server.clone();
     client.and_then_result(Box::new(move |client: T| {
-        let result: Result<Response<metadata_response::MetadataResponse>, TcpRequestError> =
+        let result: Result<Response<metadata_response::MetadataResponse>, ApiRequestError> =
             client.request(&bootstrap_server, Request::of(metadata_request::MetadataRequest { topics: None, allow_auto_topic_creation: false }));
 
         result.map(|response| {
@@ -506,10 +511,10 @@ fn retrieve_metadata<T: ApiClientTrait + 'static>(
 }
 
 fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
-    client: IO<T, TcpRequestError>,
+    client: IO<T, ApiRequestError>,
     bootstrap_server: &BootstrapServer,
     topic_name: &String,
-) -> IO<describeconfigs_response::Resource, TcpRequestError> {
+) -> IO<describeconfigs_response::Resource, ApiRequestError> {
     let bootstrap_server = bootstrap_server.clone();
     let topic_name = topic_name.clone();
 
@@ -520,7 +525,7 @@ fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
             config_names: None,
         };
 
-        let result: Result<Response<describeconfigs_response::DescribeConfigsResponse>, TcpRequestError> = client.request(
+        let result: Result<Response<describeconfigs_response::DescribeConfigsResponse>, ApiRequestError> = client.request(
             &bootstrap_server,
             Request::of(describeconfigs_request::DescribeConfigsRequest { resources: vec![resource], include_synonyms: false }),
         );
@@ -534,13 +539,13 @@ fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
                 .collect::<Vec<describeconfigs_response::Resource>>();
 
             match resource.first() {
-                None => Err(TcpRequestError::from("API response missing topic resource info")),
+                None => Err(ApiRequestError::from("API response missing topic resource info")),
                 Some(resource) => {
                     if resource.error_code == 0 {
                         Ok(resource.clone())
                     } else {
                         let error_msg = resource.error_message.clone().unwrap_or(format!(""));
-                        Err(TcpRequestError::of(format!("Error describing config. {}", error_msg)))
+                        Err(ApiRequestError::of(format!("Error describing config. {}", error_msg)))
                     }
                 }
             }
@@ -549,19 +554,22 @@ fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
 }
 
 fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
-    client: IO<T, TcpRequestError>,
+    client: IO<T, ApiRequestError>,
     bootstrap_server: &BootstrapServer,
     metadata_response: &metadata_response::MetadataResponse,
     topic_metadata: &metadata_response::TopicMetadata,
-) -> IO<(Vec<metadata_response::PartitionMetadata>, HashMap<i32, listoffsets_response::PartitionResponse>), TcpRequestError> {
+) -> IO<(Vec<metadata_response::PartitionMetadata>, HashMap<i32, listoffsets_response::PartitionResponse>), ApiRequestError> {
     let metadata_response = metadata_response.clone();
     let topic_metadata = topic_metadata.clone();
     let bootstrap_server = bootstrap_server.clone();
 
     client.and_then_result(Box::new(move |client: T| {
         let partition_metadata = &topic_metadata.partition_metadata;
-        let broker_id_to_host_map =
-            metadata_response.brokers.iter().map(|b| (b.node_id, BootstrapServer(b.host.clone(), b.port))).collect::<HashMap<i32, BootstrapServer>>();
+        let broker_id_to_host_map = metadata_response
+            .brokers
+            .iter()
+            .map(|b| (b.node_id, BootstrapServer::of(b.host.clone(), b.port, bootstrap_server.use_tls)))
+            .collect::<HashMap<i32, BootstrapServer>>();
 
         let mut sorted_partition_metadata = partition_metadata.clone();
         sorted_partition_metadata.sort_by(|a, b| a.partition.cmp(&b.partition));
@@ -589,16 +597,16 @@ fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
         let partition_offset_responses = partition_offset_requests
             .into_iter()
             .map(|(broker_address, topic)| {
-                let listoffsets_response: Result<Response<listoffsets_response::ListOffsetsResponse>, TcpRequestError> = client.request(
+                let listoffsets_response: Result<Response<listoffsets_response::ListOffsetsResponse>, ApiRequestError> = client.request(
                     broker_address,
                     Request::of(listoffsets_request::ListOffsetsRequest { replica_id: -1, isolation_level: 0, topics: vec![topic] }),
                 );
                 listoffsets_response.and_then(|response| match response.response_message.responses.first() {
                     Some(topic_offsets) => Ok(topic_offsets.partition_responses.clone()),
-                    None => Err(TcpRequestError::from("ListOffsets API did not return any topic offsets")),
+                    None => Err(ApiRequestError::from("ListOffsets API did not return any topic offsets")),
                 })
             })
-            .collect::<Result<Vec<Vec<listoffsets_response::PartitionResponse>>, TcpRequestError>>()
+            .collect::<Result<Vec<Vec<listoffsets_response::PartitionResponse>>, ApiRequestError>>()
             .map(|vecs| vecs.flatten());
 
         let partition_offsets = partition_offset_responses.map(|partition_offset_responses| {
@@ -613,15 +621,16 @@ fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
 }
 
 fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
-    client: IO<T, TcpRequestError>,
+    client: IO<T, ApiRequestError>,
     group_id: &String,
     coordinator: &Coordinator,
     topic_metadata: &metadata_response::TopicMetadata,
-) -> IO<HashMap<i32, offsetfetch_response::PartitionResponse>, TcpRequestError> {
+    use_tls: bool,
+) -> IO<HashMap<i32, offsetfetch_response::PartitionResponse>, ApiRequestError> {
     let group_id = group_id.clone();
     let coordinator = coordinator.clone();
     let topic_metadata = topic_metadata.clone();
-    let bootstrap_server = BootstrapServer(coordinator.host.clone(), coordinator.port);
+    let bootstrap_server = BootstrapServer::of(coordinator.host.clone(), coordinator.port, use_tls);
 
     client.and_then_result(Box::from(move |client: T| {
         let topic = offsetfetch_request::Topic {
@@ -629,14 +638,14 @@ fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
             partitions: topic_metadata.partition_metadata.iter().map(|p| p.partition).collect(),
         };
 
-        let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, TcpRequestError> = client
+        let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, ApiRequestError> = client
             .request(
                 &bootstrap_server,
                 Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }),
             )
             .and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
                 if result.response_message.error_code != 0 {
-                    Err(TcpRequestError::of(format!("Error code {} with OffsetFetchRequest", result.response_message.error_code)))
+                    Err(ApiRequestError::of(format!("Error code {} with OffsetFetchRequest", result.response_message.error_code)))
                 } else {
                     Ok(result)
                 }
@@ -650,7 +659,7 @@ fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
                 .find(|response| response.topic.eq(&topic.topic))
                 .map(|response| response.partition_responses);
             match responses {
-                None => Err(TcpRequestError::from("Topic not returned from API request")),
+                None => Err(ApiRequestError::from("Topic not returned from API request")),
                 Some(partition_responses) => Ok(partition_responses),
             }
         });
@@ -662,13 +671,14 @@ fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
 }
 
 fn delete_topic<T: ApiClientTrait + 'static>(
-    client: IO<T, TcpRequestError>,
+    client: IO<T, ApiRequestError>,
     delete_topic_name: &String,
     controller_broker: &metadata_response::BrokerMetadata,
-) -> IO<Response<deletetopics_response::DeleteTopicsResponse>, TcpRequestError> {
+    use_tls: bool,
+) -> IO<Response<deletetopics_response::DeleteTopicsResponse>, ApiRequestError> {
     let delete_topic_name = delete_topic_name.clone();
     let controller_broker = controller_broker.clone();
-    let bootstrap_server = BootstrapServer(controller_broker.host.clone(), controller_broker.port);
+    let bootstrap_server = BootstrapServer::of(controller_broker.host.clone(), controller_broker.port, use_tls);
 
     client.and_then_result(Box::new(move |client: T| {
         client.request(
@@ -679,14 +689,14 @@ fn delete_topic<T: ApiClientTrait + 'static>(
 }
 
 fn alter_config<T: ApiClientTrait + 'static>(
-    client: IO<T, TcpRequestError>,
+    client: IO<T, ApiRequestError>,
     bootstrap_server: &BootstrapServer,
     resource: &alterconfigs_request::Resource,
 ) -> Result<(), StateFNError> {
     let resource = resource.clone();
     let bootstrap_server = bootstrap_server.clone();
 
-    let alterconfigs_response: Result<Response<alterconfigs_response::AlterConfigsResponse>, TcpRequestError> = client
+    let alterconfigs_response: Result<Response<alterconfigs_response::AlterConfigsResponse>, ApiRequestError> = client
         .and_then_result(Box::new(move |client: T| {
             client.request(
                 &bootstrap_server,
