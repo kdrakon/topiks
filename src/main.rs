@@ -33,6 +33,7 @@ use state::DialogMessage;
 use user_interface::user_input;
 
 pub mod api_client;
+pub mod error_codes;
 pub mod event_bus;
 pub mod kafka_protocol;
 pub mod state;
@@ -88,7 +89,7 @@ fn main() -> Result<(), u8> {
 
     let enable_tls = matches.is_present("tls");
     let bootstrap_server =
-        BootstrapServer::from_arg(matches.value_of("bootstrap-server").unwrap(), enable_tls).expect("Could not parse bootstrap server");
+        BootstrapServer::from_arg(matches.value_of("bootstrap-server").unwrap(), enable_tls).ok_or(error_codes::COULD_NOT_PARSE_BOOTSTRAP_SERVER)?;
 
     let app_config = AppConfig {
         bootstrap_server,
@@ -103,7 +104,7 @@ fn main() -> Result<(), u8> {
         kafka_protocol::api_verification::apply(ApiClient::new(), &app_config.bootstrap_server, &kafka_protocol::api_verification::apis_in_use())
     {
         eprintln!("Kafka Protocol API Error(s): {:?}", err);
-        Err(127)
+        Err(error_codes::KAFKA_API_VERIFICATION_FAIL)
     } else {
         let sender = event_bus::start();
         let _stdout = &mut AlternateScreen::from(std::io::stdout().into_raw_mode().unwrap()); // raw mode to avoid screen output
