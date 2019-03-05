@@ -35,6 +35,7 @@ pub enum CurrentView {
     Topics,
     Partitions,
     TopicInfo,
+    HelpScreen,
 }
 
 pub type StateFn<T> = Box<Fn(&State) -> Result<T, StateFNError>>;
