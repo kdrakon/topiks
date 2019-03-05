@@ -15,7 +15,7 @@ pub fn bool_yes_no(b: bool) -> String {
 }
 
 pub fn to_hex_array(bytes: &Vec<u8>) -> Vec<String> {
-    bytes.iter().cloned().map(|b| format!("{:02X}", b)).collect::<Vec<String>>()
+    bytes.iter().cloned().map(|b| format!("0x{:02X}", b)).collect::<Vec<String>>()
 }
 
 pub fn current_ms() -> u64 {
