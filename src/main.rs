@@ -133,6 +133,9 @@ fn main() -> Result<(), u8> {
 
         for key in stdin.keys() {
             match key.unwrap() {
+                Key::Char('h') => {
+                    sender.send(Message::ToggleView(CurrentView::HelpScreen)).unwrap();
+                }
                 Key::Char('q') => match sender.send(Message::Quit) {
                     Ok(_) => break,
                     Err(_) => {
@@ -203,7 +206,7 @@ fn main() -> Result<(), u8> {
                     // TODO support Shift+n for reverse
                     sender.send(Message::Select(SearchNext)).unwrap();
                 }
-                Key::Char('\n') => {
+                Key::Char(':') => {
                     if app_config.modification_enabled {
                         let (_width, height) = terminal_size().unwrap();
                         match user_input::read(":", (1, height), sender.clone()) {

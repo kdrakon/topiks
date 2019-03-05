@@ -133,7 +133,9 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                 .map_err(|err| StateFNError::caused("Error encountered trying to retrieve topics", err));
 
             match state.current_view {
-                CurrentView::Topics => metadata_response.map(|metadata_response| MetadataPayload::Metadata(metadata_response)),
+                CurrentView::Topics | CurrentView::HelpScreen => {
+                    metadata_response.map(|metadata_response| MetadataPayload::Metadata(metadata_response))
+                }
                 CurrentView::Partitions => metadata_response.and_then(|metadata_response| {
                     state
                         .selected_topic_metadata()
@@ -180,6 +182,7 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
         Select(direction) => {
             SelectionUpdated(Box::from(move |state: &State| {
                 match state.current_view {
+                    CurrentView::HelpScreen => Ok((CurrentView::HelpScreen, 0)),
                     CurrentView::Topics => {
                         let selected_index = match direction {
                             Up => {
@@ -276,6 +279,7 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
 
         Delete(bootstrap_server, request_timeout_ms) => ResourceDeleted(Box::from(move |state: &State| match state.current_view {
             CurrentView::Partitions => Err(StateFNError::error("Partition deletion not supported")),
+            CurrentView::HelpScreen => Err(StateFNError::error("You can't delete this...")),
             CurrentView::Topics => state
                 .metadata
                 .as_ref()
@@ -359,6 +363,7 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
         ModifyValue(bootstrap_server, new_value) => ValueModified(Box::from(move |state: &State| match state.current_view {
             CurrentView::Topics => Err(StateFNError::error("Modifications not supported for topics")),
             CurrentView::Partitions => Err(StateFNError::error("Modifications not supported for partitions")),
+            CurrentView::HelpScreen => Err(StateFNError::error("You can't modify this...")),
             CurrentView::TopicInfo => state
                 .topic_info_state
                 .as_ref()
@@ -441,12 +446,17 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
                     CurrentView::TopicInfo => CurrentView::Topics,
                     _ => CurrentView::TopicInfo,
                 },
+                CurrentView::HelpScreen => match current_state.current_view {
+                    CurrentView::HelpScreen => CurrentView::Topics,
+                    _ => CurrentView::HelpScreen,
+                },
             };
             current_state.current_view = new_view;
             Ok(current_state.clone())
         }
         SelectionUpdated(select_fn) => match select_fn(&current_state) {
             Err(e) => Err(e),
+            Ok((CurrentView::HelpScreen, _)) => Ok(current_state.clone()),
             Ok((CurrentView::Topics, selected_index)) => {
                 current_state.selected_index = selected_index;
                 Ok(current_state.clone())

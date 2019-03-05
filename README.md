@@ -37,3 +37,16 @@ ARGS:
     <bootstrap-server>    A single Kafka broker [DOMAIN|IP]:PORT
 ```
 
+### Commands
+```
+ h → Toggle this screen
+ q → Quit
+ p → Toggle partitions
+ i → Toggle topic config
+ / → Enter search query for topic name
+ n → Find next search result
+ r → Refresh. Retrieves metadata from Kafka cluster
+ : → Modify a resource (e.g. topic config) via text input
+ d → Delete a resource. Will delete a topic or reset a topic config
+```
+
