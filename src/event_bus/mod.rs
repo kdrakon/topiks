@@ -73,7 +73,7 @@ pub enum Message {
     UserInput(String),
     Select(MoveSelection),
     SetTopicQuery(TopicQuery),
-    Delete(BootstrapServer),
+    Delete(BootstrapServer, i32),
     ModifyValue(BootstrapServer, Option<String>),
 }
 
@@ -95,7 +95,7 @@ pub fn start() -> Sender<Message> {
 
     let thread_sender = sender.clone();
     thread::spawn(move || {
-        let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
+        let state = RefCell::new(State::new()); // RefCell for interior mutability
 
         for message in receiver {
             match to_event(message, Box::new(|| IO::new(Box::new(|| Ok(ApiClient::new()))))) {
@@ -274,7 +274,7 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
             NoQuery => TopicQuerySet(None),
         },
 
-        Delete(bootstrap_server) => ResourceDeleted(Box::from(move |state: &State| match state.current_view {
+        Delete(bootstrap_server, request_timeout_ms) => ResourceDeleted(Box::from(move |state: &State| match state.current_view {
             CurrentView::Partitions => Err(StateFNError::error("Partition deletion not supported")),
             CurrentView::Topics => state
                 .metadata
@@ -295,9 +295,14 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                     .first()
                                     .map(|controller_broker| {
                                         let delete_topic_name = delete_topic_metadata.topic.clone();
-                                        let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, ApiRequestError> =
-                                            delete_topic(api_client_provider(), &delete_topic_name, &controller_broker, bootstrap_server.use_tls)
-                                                .into_result();
+                                        let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, ApiRequestError> = delete_topic(
+                                            api_client_provider(),
+                                            &delete_topic_name,
+                                            &controller_broker,
+                                            bootstrap_server.use_tls,
+                                            request_timeout_ms,
+                                        )
+                                        .into_result();
                                         match result {
                                             Ok(response) => {
                                                 let map = response
@@ -675,6 +680,7 @@ fn delete_topic<T: ApiClientTrait + 'static>(
     delete_topic_name: &String,
     controller_broker: &metadata_response::BrokerMetadata,
     use_tls: bool,
+    request_timeout_ms: i32,
 ) -> IO<Response<deletetopics_response::DeleteTopicsResponse>, ApiRequestError> {
     let delete_topic_name = delete_topic_name.clone();
     let controller_broker = controller_broker.clone();
@@ -683,7 +689,7 @@ fn delete_topic<T: ApiClientTrait + 'static>(
     client.and_then_result(Box::new(move |client: T| {
         client.request(
             &bootstrap_server,
-            Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: 30_000 }),
+            Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: request_timeout_ms }),
         )
     }))
 }
