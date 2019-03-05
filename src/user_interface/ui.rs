@@ -49,12 +49,31 @@ pub fn update_with_state(state: &State) {
                     show_topic_info(screen, (width, height - 4), (1, 2), topic_info);
                 }
             }
+            CurrentView::HelpScreen => show_help(screen),
         }
     }
 
     show_user_input(screen, (width, height), state.user_input.as_ref());
 
     screen.flush().unwrap(); // flush complete buffer to screen once
+}
+
+const HELP: [(&str, &str); 9] = [
+    ("h", "Toggle this screen"),
+    ("q", "Quit"),
+    ("p", "Toggle partitions"),
+    ("i", "Toggle topic config"),
+    ("/", "Enter search query for topic name"),
+    ("n", "Find next search result"),
+    ("r", "Refresh. Retrieves metadata from Kafka cluster"),
+    (":", "Modify a resource (e.g. topic config) via text input"),
+    ("d", "Delete a resource. Will delete a topic or reset a topic config"),
+];
+
+fn show_help(screen: &mut impl Write) {
+    for (index, (key, help)) in HELP.iter().enumerate() {
+        write!(screen, "\n{}{}{}{} → {}", cursor::Goto(2, (index + 2) as u16), style::Bold, key, style::Reset, help).unwrap();
+    }
 }
 
 fn show_dialog_message(screen: &mut impl Write, width: u16, message: &Option<DialogMessage>) {
@@ -160,7 +179,7 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
         style::Reset
     )
     .unwrap();
-    write!(screen, "{}", pad_right(&format!("Internal: {}", &(utils::bool_yes_no(topic_metadata.is_internal))), width,)).unwrap();
+    write!(screen, "{}", pad_right(&format!("Internal: {}", &(utils::bool_yes_no(topic_metadata.is_internal))), width)).unwrap();
 
     // configs
     write!(screen, "{}{}{}", style::Bold, pad_right(&String::from("Configs:"), width), style::Reset).unwrap();
