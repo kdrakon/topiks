@@ -321,7 +321,7 @@ fn topic_deletion_marking() {
     swap_state(&state, selection_updated);
 
     /* Delete the second topic */
-    let delete_event = match event_bus::to_event(Message::Delete(test_bootstrap_server()), test_api_client_provider(responses.clone())) {
+    let delete_event = match event_bus::to_event(Message::Delete(test_bootstrap_server(), 30_000), test_api_client_provider(responses.clone())) {
         Event::ResourceDeleted(deletion) => match deletion(&state.borrow()) {
             Ok(Deletion::Topic(topic_deleted)) => {
                 assert_eq!(topic_deleted, "bar");
@@ -492,7 +492,7 @@ fn modify_topic_config() {
     assert_eq!(topic_info_state.configs_marked_modified, vec!["compression.type"]);
 
     /* Delete (reset) the config */
-    let delete_event = match event_bus::to_event(Message::Delete(test_bootstrap_server()), test_api_client_provider(responses.clone())) {
+    let delete_event = match event_bus::to_event(Message::Delete(test_bootstrap_server(), 30_000), test_api_client_provider(responses.clone())) {
         Event::ResourceDeleted(deletion) => match deletion(&state.borrow()) {
             Ok(Deletion::Config(config_reset)) => {
                 assert_eq!(config_reset, "compression.type");

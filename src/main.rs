@@ -152,7 +152,7 @@ fn main() -> Result<(), u8> {
                             match user_input::read("[Yes]?: ", (1, height), sender.clone()) {
                                 Ok(Some(confirm)) => {
                                     if confirm.eq("Yes") {
-                                        sender.send(Message::Delete(bootstrap_server())).unwrap();
+                                        sender.send(Message::Delete(bootstrap_server(), app_config.request_timeout_ms)).unwrap();
                                     } else {
                                         sender.send(Message::Noop).unwrap();
                                     }
@@ -160,7 +160,7 @@ fn main() -> Result<(), u8> {
                                 _ => (),
                             }
                         } else {
-                            sender.send(Message::Delete(bootstrap_server())).unwrap();
+                            sender.send(Message::Delete(bootstrap_server(), app_config.request_timeout_ms)).unwrap();
                         }
                         sender.send(Message::DisplayUIMessage(DialogMessage::None)).unwrap();
                     }
