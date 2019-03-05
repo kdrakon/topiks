@@ -96,10 +96,10 @@ impl ApiClientTrait for ApiClient {
         });
 
         // DEBUG response
-        response.iter().for_each(|bytes| {
-            use util::utils;
-            println!("bytes for API key {}:v{}: {:?}", _api_key, _api_key_version, utils::to_hex_array(&bytes));
-        });
+        //        response.iter().for_each(|bytes| {
+        //            use util::utils;
+        //            println!("bytes for API key {}:v{}: {:?}", _api_key, _api_key_version, utils::to_hex_array(&bytes));
+        //        });
 
         response.and_then(|bytes| bytes.into_protocol_type().map_err(|e| ApiRequestError::of(e.error)))
     }
