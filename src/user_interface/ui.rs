@@ -1,6 +1,5 @@
 use std::io::{stdout, Write};
 
-use termion;
 use termion::clear;
 use termion::color;
 use termion::cursor;
@@ -30,7 +29,6 @@ use util::utils::pad_right;
 pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
     let (width, height): (u16, u16) = terminal_size().unwrap();
-    write!(screen, "{}", termion::clear::All).unwrap();
 
     show_dialog_message(screen, width, &state.dialog_message);
 
