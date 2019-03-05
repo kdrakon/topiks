@@ -30,7 +30,7 @@ pub enum DialogMessage {
     Error(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CurrentView {
     Topics,
     Partitions,

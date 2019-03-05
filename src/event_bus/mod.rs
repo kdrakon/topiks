@@ -95,7 +95,7 @@ pub fn start() -> Sender<Message> {
 
     let thread_sender = sender.clone();
     thread::spawn(move || {
-        let state = RefCell::new(State::new()); // RefCell for interior mutability ('unsafe' code)
+        let state = RefCell::new(State::new()); // RefCell for interior mutability
 
         for message in receiver {
             match to_event(message, Box::new(|| IO::new(Box::new(|| Ok(ApiClient::new()))))) {
