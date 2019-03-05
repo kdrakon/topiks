@@ -94,6 +94,10 @@ fn show_topics(
     selected_index: usize,
     marked_deleted: &Vec<String>,
 ) {
+    let cluster_name = metadata.cluster_id.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
+    let header = format!("cluster:{} brokers:{} topics:{}", cluster_name, metadata.brokers.len(), metadata.topic_metadata.len());
+    write!(screen, "{}{}{}", cursor::Right(width - (header.len() as u16)), style::Bold, header).unwrap();
+
     use user_interface::selectable_list::TopicListItem::*;
 
     let paged = PagedVec::from(&metadata.topic_metadata, height as usize);
