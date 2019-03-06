@@ -1,21 +1,25 @@
 language: rust
 
-os:
-  - linux
-  - osx
-
 rust:
-- stable
+  - stable
 
-script:
-  - make osx
+matrix:
+  include:
+    - os: osx
+      env: TARGET=target/x86_64-apple-darwin/release/topiks
+      script:
+        - make osx
+    - os: linux
+      env: TARGET=target/x86_64-unknown-linux-musl/release/topiks
+      script:
+        - make linux
 
 deploy:
   provider: releases
   skip_cleanup: true
   api_key:
     secure: f7OAL6Pyo4AW6RJaNkR0oXDmc6H/2ux8ig6znvAnxbbWYNZXf15pea1MnmdjYzEdI+KMsIc5y5t9Ts3Sr/XclsKH/XZ3lobV6leQX5MK03Qtbe3VsdKjk6P5vpMC725rTV4b8i1SLqJP+Sa7ZUzoKbYwH+NPUpLJewtnf3KsfmLybJThfJ65p/2eUPnQHQUturZUuTd+NpWVVZPGWmNpmLT39EpizKHt+SdsgpA7faLN8QjeSPnAD8Opj+ZvJMJ4PoqXUOD759oX0p0GzYNyHVc3N59JvUhaIKmINN9zLwRKAXe6m+vtjpMEqo+W98VAzEK7IRYi8KnMuAtCzf7EYOYTyjGrWrLNH+sGQvXOiwTJ20gDmhJRHDIHWzBG/aruUj9ba4+LN5Tqromtv84ZycmjYM9OrxG1Dc7l8EQtCn92S4ZanUAPCfH8l5p5j4yvCdt2Oqoxsw9CZtWyl7c1qSQqtsM2W0i2IXSYfW9M0Wl52EEGWdoVssG6E6fJt1fKZhCIFhT7UpSTI34p4RweknBGJem9l0PWbVNwTjugdmfKa5nAuceevEy/m9B+E5CtNa+982CA9SGPLawpKd6Pe+yQJ1fhtIimDDRiBtrEXuk3KbWGUNxQBrDl+ykk+3GoivH6lUAn2v0cwmsoziVtFe2cCGLPun9DuMZOAUspGEQ=
-  file: foo
+  file: $TARGET
   on:
     repo: kdrakon/topiks
 #    tags: true
