@@ -56,7 +56,7 @@ pub fn update_with_state(state: &State) {
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
 
-const HELP: [(&str, &str); 9] = [
+const HELP: [(&str, &str); 15] = [
     ("h", "Toggle this screen"),
     ("q", "Quit"),
     ("p", "Toggle partitions"),
@@ -66,6 +66,12 @@ const HELP: [(&str, &str); 9] = [
     ("r", "Refresh. Retrieves metadata from Kafka cluster"),
     (":", "Modify a resource (e.g. topic config) via text input"),
     ("d", "Delete a resource. Will delete a topic or reset a topic config"),
+    ("Up⬆", "Move up one topic"),
+    ("Down⬇", "Move down one topic"),
+    ("PgUp⇞", "Move up ten topics"),
+    ("PgDown⇟", "Move down ten topics"),
+    ("Home⤒", "Go to first topic"),
+    ("End⤓", "Go to last topic"),
 ];
 
 fn show_help(screen: &mut impl Write) {

@@ -48,5 +48,11 @@ ARGS:
  r → Refresh. Retrieves metadata from Kafka cluster
  : → Modify a resource (e.g. topic config) via text input
  d → Delete a resource. Will delete a topic or reset a topic config
+ Up⬆ → Move up one topic
+ Down⬇ → Move down one topic
+ PgUp⇞ → Move up ten topics
+ PgDown⇟ → Move down ten topics
+ Home⤒ → Go to first topic
+ End⤓ → Go to last topic
 ```
 
