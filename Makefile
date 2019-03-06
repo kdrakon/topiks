@@ -10,3 +10,4 @@ topiks: test
 	cargo build -v --release --target ${RUST_TARGET}
 	strip target/${RUST_TARGET}/release/topiks
 	file target/${RUST_TARGET}/release/topiks
+	tar czf topiks-${RUST_TARGET}.tar.gz -C target/${RUST_TARGET}/release topiks
