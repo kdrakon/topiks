@@ -30,9 +30,10 @@ pub fn update_with_state(state: &State) {
     let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
     let (width, height): (u16, u16) = terminal_size().unwrap();
 
-    show_dialog_message(screen, width, &state.dialog_message);
-
     if let Some(ref metadata) = state.metadata {
+
+        show_dialog_header(screen, width, metadata, &state.dialog_message);
+
         match state.current_view {
             CurrentView::Topics => {
                 show_topics(screen, (width, height - 2), (1, 2), metadata, state.selected_index, &state.marked_deleted);
@@ -80,10 +81,14 @@ fn show_help(screen: &mut impl Write) {
     }
 }
 
-fn show_dialog_message(screen: &mut impl Write, width: u16, message: &Option<DialogMessage>) {
+fn show_dialog_header(screen: &mut impl Write, width: u16, metadata: &MetadataResponse, message: &Option<DialogMessage>) {
     write!(screen, "{}{}", cursor::Goto(1, 1), color::Fg(color::Black)).unwrap();
     match message.as_ref() {
-        None => (),
+        None => {
+            let cluster_name = metadata.cluster_id.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
+            let header = format!("cluster:{} brokers:{} topics:{}", cluster_name, metadata.brokers.len(), metadata.topic_metadata.len());
+            write!(screen, "{}{}{}{}", color::Fg(color::White), cursor::Right(width - (header.len() as u16)), style::Bold, header).unwrap();
+        }
         Some(&DialogMessage::None) => (),
         Some(DialogMessage::Error(error)) => write!(screen, "{}{}", color::Bg(color::LightRed), pad_right(&error, width)).unwrap(),
         Some(DialogMessage::Warn(warn)) => write!(screen, "{}{}", color::Bg(color::LightYellow), pad_right(&warn, width)).unwrap(),
@@ -100,10 +105,6 @@ fn show_topics(
     selected_index: usize,
     marked_deleted: &Vec<String>,
 ) {
-    let cluster_name = metadata.cluster_id.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
-    let header = format!("cluster:{} brokers:{} topics:{}", cluster_name, metadata.brokers.len(), metadata.topic_metadata.len());
-    write!(screen, "{}{}{}", cursor::Right(width - (header.len() as u16)), style::Bold, header).unwrap();
-
     use user_interface::selectable_list::TopicListItem::*;
 
     let paged = PagedVec::from(&metadata.topic_metadata, height as usize);
