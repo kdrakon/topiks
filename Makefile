@@ -11,6 +11,6 @@ topiks: test
 	strip target/${RUST_TARGET}/release/topiks
 	file target/${RUST_TARGET}/release/topiks
 
-package:
+package: topiks
 	cd target/${RUST_TARGET}/release/ && shasum -a 512 topiks > checksum-sha512
 	tar vczf topiks-${RUST_TARGET}.tar.gz -C target/${RUST_TARGET}/release topiks checksum-sha512
