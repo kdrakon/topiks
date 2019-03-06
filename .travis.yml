@@ -22,4 +22,6 @@ deploy:
   file: $TARGET
   on:
     repo: kdrakon/topiks
+    draft: true
+    branch: travis-building
 #    tags: true
