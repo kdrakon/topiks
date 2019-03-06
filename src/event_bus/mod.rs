@@ -31,9 +31,13 @@ use BootstrapServer;
 #[derive(Clone)]
 pub struct ConsumerGroup(pub String, pub findcoordinator_response::Coordinator);
 
+const PAGE_MOVEMENT: i32 = 10;
+
 pub enum MoveSelection {
     Up,
+    PageUp,
     Down,
+    PageDown,
     Top,
     Bottom,
     SearchNext,
@@ -192,10 +196,27 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                     state.selected_index
                                 }
                             }
+                            PageUp => {
+                                if (state.selected_index as i32 - PAGE_MOVEMENT) <= 0 {
+                                    state.selected_index
+                                } else {
+                                    state.selected_index - (PAGE_MOVEMENT as usize)
+                                }
+                            }
                             Down => match state.metadata {
                                 Some(ref metadata) => {
                                     if state.selected_index < (metadata.topic_metadata.len() - 1) {
                                         state.selected_index + 1
+                                    } else {
+                                        state.selected_index
+                                    }
+                                }
+                                None => 0,
+                            },
+                            PageDown => match state.metadata {
+                                Some(ref metadata) => {
+                                    if ((state.selected_index as i32) + PAGE_MOVEMENT) < (metadata.topic_metadata.len() as i32 - 1) {
+                                        state.selected_index + (PAGE_MOVEMENT as usize)
                                     } else {
                                         state.selected_index
                                     }
@@ -230,6 +251,8 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                             selected_index
                                         }
                                     }
+                                    PageUp => selected_index,   // not implemented
+                                    PageDown => selected_index, // not implemented
                                     Top => 0,
                                     Bottom => partition_info_state.partition_metadata.len() - 1,
                                     SearchNext => selected_index, // not implemented
@@ -260,6 +283,8 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                                             selected_index
                                         }
                                     }
+                                    PageUp => selected_index,   // not implemented
+                                    PageDown => selected_index, // not implemented
                                     Top => 0,
                                     Bottom => entries_len,
                                     SearchNext => selected_index, // not implemented

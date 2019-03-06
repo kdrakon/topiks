@@ -171,8 +171,14 @@ fn main() -> Result<(), u8> {
                 Key::Up => {
                     sender.send(Message::Select(Up)).unwrap();
                 }
+                Key::PageUp => {
+                    sender.send(Message::Select(PageUp)).unwrap();
+                }
                 Key::Down => {
                     sender.send(Message::Select(Down)).unwrap();
+                }
+                Key::PageDown => {
+                    sender.send(Message::Select(PageDown)).unwrap();
                 }
                 Key::Home => {
                     sender.send(Message::Select(Top)).unwrap();
