@@ -11,6 +11,7 @@ matrix:
       script:
         - make package
     - os: linux
+      dist: trusty
       env: RUST_TARGET=x86_64-unknown-linux-gnu
       script:
         - make package
