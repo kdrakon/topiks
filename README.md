@@ -11,12 +11,15 @@ An interactive CLI tool for managing Kafka topics.
 Much of my time with Kafka clusters involves working directly on either brokers and/or other components (e.g. Kafka Connect, Schema Registry, etc.). There are a number of useful functions that Apache Kafka and Confluent have provided, but a lot of the time, what I desired was a single tool to perform menial topic tasks. Presently, I know there are plans for an in-house CLI tool to be built, but I thought I'd take a crack at one in the meantime.
 
 ## Features
+- compatible with Apache Kafka >=2.0
 - list topics, configurations, and offsets
 - _interactively create topics (**WIP**)_
 - selectively delete topics
-- modify a topics configuration, replication factor
+- modify a topics configuration
+- _modify a topics replication factor (**WIP**)_
 - _increase the partitions for a topic (**WIP**)_
 - get offset and lag for a consumer group 
+- TLS/SSL protocol support
 
 ## Usage
 ```
