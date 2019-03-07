@@ -1,20 +1,26 @@
+language: rust
+rust: stable
+services: docker
+
+osx_image: xcode9.4 #OSX 10.13
+dist: trusty
+
 matrix:
   include:
     - os: osx
-      osx_image: xcode9.4 #OSX 10.13
-      language: rust
-      rust: stable
       env: RUST_TARGET=x86_64-apple-darwin OS_TARGET=osx-10.13 MACOSX_DEPLOYMENT_TARGET=10.13
       script:
         - make test
       before_deploy:
         - make package
     - os: linux
-      dist: trusty
-      services: docker
-      env:
-        - RUST_TARGET=x86_64-unknown-linux-gnu OS_TARGET=ubuntu_trusty
-        - RUST_TARGET=x86_64-unknown-linux-gnu OS_TARGET=centos_7
+      env: RUST_TARGET=x86_64-unknown-linux-gnu OS_TARGET=ubuntu_trusty
+      script:
+        - make test
+      before_deploy:
+        - make linux-package
+    - os: linux
+      env: RUST_TARGET=x86_64-unknown-linux-gnu OS_TARGET=centos_7
       script:
         - make test
       before_deploy:
