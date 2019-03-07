@@ -55,6 +55,11 @@ ARGS:
  End⤓ → Go to last topic
 ```
 
+## Build your own
+1. Install rust and Cargo: https://rustup.rs/
+1. `RUST_TARGET=??? make build` where `RUST_TARGET` is the rust toolchain. For example, `x86_64-apple-darwin` or `x86_64-unknown-linux-gnu`
+1. The binary will be in `target/${RUST_TARGET}/release/`
+
 ## FAQ
 
 > What was the main reason for building this?
