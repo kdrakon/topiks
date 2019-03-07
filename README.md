@@ -5,8 +5,6 @@
 
 An interactive CLI tool for managing Kafka topics.
 
-![screen capture](cursive.gif)
-
 ## Features
 - compatible with Apache Kafka >=2.0
 - list topics, configurations, and offsets
@@ -17,6 +15,14 @@ An interactive CLI tool for managing Kafka topics.
 - _increase the partitions for a topic (**WIP**)_
 - get offset and lag for a consumer group 
 - TLS/SSL protocol support
+
+## A Quick Look
+
+![Listing and searching for topics](gifs/list-and-search.gif)
+- Listing and searching for topics
+
+![Looking at partitions and offsets](gifs/partitions-and-offsets.gif)
+- Looking at partitions and offsets
 
 ## Usage
 ```
