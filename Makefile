@@ -6,7 +6,7 @@ clean:
 test: clean
 	cargo test
 
-build:
+build: clean
 	rustup target add ${RUST_TARGET}
 	cargo build -v --release --target ${RUST_TARGET}
 	strip target/${RUST_TARGET}/release/topiks

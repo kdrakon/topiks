@@ -9,22 +9,19 @@ matrix:
   include:
     - os: osx
       env: RUST_TARGET=x86_64-apple-darwin OS_TARGET=osx-10.13 MACOSX_DEPLOYMENT_TARGET=10.13
-      script:
-        - make test
       before_deploy:
         - make package
     - os: linux
       env: RUST_TARGET=x86_64-unknown-linux-gnu OS_TARGET=ubuntu_trusty
-      script:
-        - make test
       before_deploy:
         - make linux-package
     - os: linux
       env: RUST_TARGET=x86_64-unknown-linux-gnu OS_TARGET=centos_7
-      script:
-        - make test
       before_deploy:
         - make linux-package
+
+script:
+  - make test
 
 deploy:
   provider: releases
