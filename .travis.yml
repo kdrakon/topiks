@@ -32,9 +32,7 @@ jobs:
 stages:
   - test
   - osx_package
-    if: os = osx
   - linux_package
-    if: os = linux
 
 deploy:
   provider: releases
