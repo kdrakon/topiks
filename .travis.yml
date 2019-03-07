@@ -5,18 +5,36 @@ rust:
 
 matrix:
   include:
-#    - os: osx
-#      osx_image: xcode9.4 #OSX 10.13
-#      env: RUST_TARGET=x86_64-apple-darwin MACOSX_DEPLOYMENT_TARGET=10.13
-#      script:
-#        - make package
+    - os: osx
+      osx_image: xcode9.4 #OSX 10.13
+      env: RUST_TARGET=x86_64-apple-darwin MACOSX_DEPLOYMENT_TARGET=10.13
     - os: linux
       dist: trusty
-      env: RUST_TARGET=x86_64-unknown-linux-gnu
+      services: docker
+      env: RUST_TARGET=x86_64-unknown-linux-gnu LINUX_ENV=topiks-ubuntu-env
+    - os: linux
+      dist: trusty
+      services: docker
+      env: RUST_TARGET=x86_64-unknown-linux-gnu LINUX_ENV=topiks-centos-env
+
+stages:
+  - test
+  - osx-package
+    if: os = osx
+  - linux-package
+    if: os = linux
+
+jobs:
+  include:
+    - stage: test
       script:
-        - sudo apt-get -y update
-        - sudo apt-get -y install libssl-dev
+        - make test
+    - stage: osx-package
+      script:
         - make package
+    - stage: linux-package
+      script:
+        - make linux-package
 
 deploy:
   provider: releases
