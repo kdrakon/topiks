@@ -3,3 +3,4 @@ target/
 Cargo.lock
 *.iml
 scratchpad
+/.DS_Store

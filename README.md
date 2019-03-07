@@ -7,9 +7,6 @@ An interactive CLI tool for managing Kafka topics.
 
 ![screen capture](cursive.gif)
 
-## About
-Much of my time with Kafka clusters involves working directly on either brokers and/or other components (e.g. Kafka Connect, Schema Registry, etc.). There are a number of useful functions that Apache Kafka and Confluent have provided, but a lot of the time, what I desired was a single tool to perform menial topic tasks. Presently, I know there are plans for an in-house CLI tool to be built, but I thought I'd take a crack at one in the meantime.
-
 ## Features
 - compatible with Apache Kafka >=2.0
 - list topics, configurations, and offsets
@@ -60,3 +57,14 @@ ARGS:
  End⤓ → Go to last topic
 ```
 
+## FAQ
+
+> What was the main reason for building this?
+
+I found a lot of my time developing Kafka applications—namely Kafka Streams—involved keeping an eye on the consumer groups I was using. This primarily meant tracking the group offsets of the topics my applications were reading and writing. With a mix of `grep`, `awk`, and `sed` commands, we would periodically read data from `kafka-consumer-groups`. Although this worked, it wasn't ideal when we moved to other applications or had different topics and consumer groups we wanted to track. This led me to imagining a Kafka topics tool that would be in the same vain
+
+> Why can't you read or write to topics?
+
+Although that feature wouldn't be overly difficult to implement, there are two reasons I prefer not to do so:
+1. In almost all of my experience with Kafka, the data we read/write is in some schema format (e.g. Avro). This in-turn means there would be some cumbersome work for both producing and consuming via the command-line. Ideally, if you really want to read/write from there, you can use the bundled CLI tools from Kafka and Confluent.
+1. Topiks would have to work with a consumer group
