@@ -31,7 +31,6 @@ pub fn update_with_state(state: &State) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
 
     if let Some(ref metadata) = state.metadata {
-
         show_dialog_header(screen, width, metadata, &state.dialog_message);
 
         match state.current_view {

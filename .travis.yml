@@ -32,5 +32,4 @@ deploy:
   on:
     repo: kdrakon/topiks
     draft: true
-    branch: travis-building
-#    tags: true
+    tags: true
