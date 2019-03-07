@@ -82,15 +82,15 @@ TLS/SSL is capable via the [rust-native-tls](https://github.com/sfackler/rust-na
 
 ![Listing and searching for topics](gifs/list-and-search.gif)
 
-- Looking at partitions and offsets
+- Looking at partitions and offsets. In this case, we can see the consumer group has read three messages across the partitions.
 
 ![Looking at partitions and offsets](gifs/partitions-and-offsets.gif)
 
-- Topic configuration
+- Topic configuration. In this case, Topiks applies a config override. To reset the override, simply _delete_ (`d`) the config and it will revert to the global default.
 
 ![Topic configuration](gifs/topic-config.gif)
 
-- Topic deletion
+- Topic deletion. You can also override the delete confirmation if you're absolutely sure you know what you're doing.
 
 ![Topic deletion](gifs/topic-delete.gif)
 
