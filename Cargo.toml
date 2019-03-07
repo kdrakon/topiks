@@ -2,6 +2,14 @@
 name = "topiks"
 version = "0.1.0-alpha+001"
 authors = ["Sean Policarpio <sean@policarp.io>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/kdrakon/topiks"
+keywords = ["cli", "kafka"]
+
+[profile.release]
+lto = true
+panic = 'abort'
 
 [dependencies]
 byteorder = "1.2.1"
