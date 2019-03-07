@@ -19,9 +19,9 @@ matrix:
 
 stages:
   - test
-  - osx-package
+  - osx_package
     if: os = osx
-  - linux-package
+  - linux_package
     if: os = linux
 
 jobs:
@@ -29,10 +29,10 @@ jobs:
     - stage: test
       script:
         - make test
-    - stage: osx-package
+    - stage: osx_package
       script:
         - make package
-    - stage: linux-package
+    - stage: linux_package
       script:
         - make linux-package
 
