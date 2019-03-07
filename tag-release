@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+VERSION=$(cargo read-manifest | jq -r .version)
+
+git tag -s -a ${VERSION} -m "Topiks version ${VERSION}"
