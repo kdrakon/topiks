@@ -1,12 +1,26 @@
-language: rust
+jobs:
+  include:
+    - stage: test
+      script:
+        - make test
+    - stage: osx-package
+      script:
+        - make package
+    - stage: linux-package
+      script:
+        - make linux-package
 
-rust:
-  - stable
+stages:
+  - test
+  - osx-package
+  - linux-package
 
 matrix:
   include:
     - os: osx
       osx_image: xcode9.4 #OSX 10.13
+      language: rust
+      rust: stable
       env: RUST_TARGET=x86_64-apple-darwin MACOSX_DEPLOYMENT_TARGET=10.13
     - os: linux
       dist: trusty
@@ -16,23 +30,6 @@ matrix:
       dist: trusty
       services: docker
       env: RUST_TARGET=x86_64-unknown-linux-gnu LINUX_ENV=topiks-centos-env
-
-jobs:
-  include:
-    - stage: test
-      script:
-        - make test
-    - stage: osx_package
-      script:
-        - make package
-    - stage: linux_package
-      script:
-        - make linux-package
-
-stages:
-  - test
-  - osx_package
-  - linux_package
 
 deploy:
   provider: releases
