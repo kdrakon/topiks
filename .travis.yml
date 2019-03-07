@@ -1,20 +1,3 @@
-jobs:
-  include:
-    - stage: test
-      script:
-        - make test
-    - stage: osx-package
-      script:
-        - make package
-    - stage: linux-package
-      script:
-        - make linux-package
-
-stages:
-  - test
-  - osx-package
-  - linux-package
-
 matrix:
   include:
     - os: osx
@@ -30,6 +13,10 @@ matrix:
       dist: trusty
       services: docker
       env: RUST_TARGET=x86_64-unknown-linux-gnu LINUX_ENV=topiks-centos-env
+
+script:
+  - make test
+  - make package
 
 deploy:
   provider: releases
