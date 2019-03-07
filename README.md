@@ -16,14 +16,6 @@ An interactive CLI tool for managing Kafka topics.
 - get offset and lag for a consumer group 
 - TLS/SSL protocol support
 
-## A Quick Look
-
-![Listing and searching for topics](gifs/list-and-search.gif)
-- Listing and searching for topics
-
-![Looking at partitions and offsets](gifs/partitions-and-offsets.gif)
-- Looking at partitions and offsets
-
 ## Usage
 ```
 USAGE:
@@ -74,3 +66,24 @@ I found a lot of my time developing Kafka applications—namely Kafka Streams—
 Although that feature wouldn't be overly difficult to implement, there are two reasons I prefer not to do so:
 1. In almost all of my experience with Kafka, the data we read/write is in some schema format (e.g. Avro). This in-turn means there would be some cumbersome work for both producing and consuming via the command-line. Ideally, if you really want to read/write from there, you can use the bundled CLI tools from Kafka and Confluent.
 1. Topiks would have to work with a consumer group
+
+## A Quick Look
+
+- Listing and searching for topics
+
+![Listing and searching for topics](gifs/list-and-search.gif)
+
+- Looking at partitions and offsets
+
+![Looking at partitions and offsets](gifs/partitions-and-offsets.gif)
+
+- Topic configuration
+
+![Topic configuration](gifs/topic-config.gif)
+
+- Topic deletion
+
+![Topic deletion](gifs/topic-delete.gif)
+
+![Topic deletion with no confirmation](gifs/topic-delete-no-confirm.gif)
+
