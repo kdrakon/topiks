@@ -5,11 +5,6 @@
 
 An interactive CLI tool for managing Kafka topics.
 
-![screen capture](cursive.gif)
-
-## About
-Much of my time with Kafka clusters involves working directly on either brokers and/or other components (e.g. Kafka Connect, Schema Registry, etc.). There are a number of useful functions that Apache Kafka and Confluent have provided, but a lot of the time, what I desired was a single tool to perform menial topic tasks. Presently, I know there are plans for an in-house CLI tool to be built, but I thought I'd take a crack at one in the meantime.
-
 ## Features
 - compatible with Apache Kafka >=2.0
 - list topics, configurations, and offsets
@@ -59,4 +54,50 @@ ARGS:
  Home⤒ → Go to first topic
  End⤓ → Go to last topic
 ```
+
+## Build your own
+1. Install rust and Cargo: https://rustup.rs/
+1. `RUST_TARGET=??? make build` where `RUST_TARGET` is the rust toolchain. For example, `x86_64-apple-darwin` or `x86_64-unknown-linux-gnu`
+1. The binary will be in `target/${RUST_TARGET}/release/`
+
+## FAQ
+
+> What was the main reason for building this?
+
+I found a substantial amount of my time developing Kafka applications—namely via Kafka Streams—involved keeping an eye on the consumer groups I was using. This primarily meant tracking the group offsets of the topics my applications were reading and writing. With a mix of `grep`, `awk`, and `sed` commands, we would do this by periodically reading data from `kafka-consumer-groups`. Although this worked, it wasn't ideal when we started working on other applications or had different topics and consumer groups we wanted to track. 
+
+Furthermore, when developing new Kafka applications, we found ourselves periodically creating and deleting topics in our local and test environments.
+
+For these reasons and more, this led me to imagining a Kafka topics tool that would be in the same vein as [`htop`](https://github.com/hishamhm/htop).
+
+> Why can't you read or write to topics?
+
+Although that feature wouldn't be completely difficult to implement, there are two reasons I prefer not to do so:
+1. In almost all of my experience with Kafka, the data we read/write is in some schema format (e.g. Avro). This in-turn implies in most cases cumbersome work for the user to both correctly produce and consume via the command-line.
+1. Topiks would have to work with its own consumer group or one specified by the user. I'd prefer to minimize the impact that Topiks leaves on your Kafka cluster, such as creating throwaway consumer groups. 
+
+> How do you support TLS?
+
+TLS/SSL is capable via the [rust-native-tls](https://github.com/sfackler/rust-native-tls) crate. This library provides bindings to native TLS implementations based on your operating system. For this reason, you may find the binaries I release not compatible with your OS. The simple solution is to then build Topiks on your machine.
+
+
+## A Quick Look
+
+- Listing and searching for topics
+
+![Listing and searching for topics](https://media.giphy.com/media/uAC8ZsyWXCXBHjD3Pm/source.gif)
+
+- Looking at partitions and offsets. In this case, we can see the consumer group has read three messages across the partitions.
+
+![Looking at partitions and offsets](https://media.giphy.com/media/iAQ9GQL2YhHPFif946/source.gif)
+
+- Topic configuration. In this case, Topiks applies a config override. To reset the override, simply _delete_ (`d`) the config and it will revert to the global default.
+
+![Topic configuration](https://media.giphy.com/media/5WISIFAMqL7arpUI7P/source.gif)
+
+- Topic deletion. You can also override the delete confirmation if you're absolutely sure you know what you're doing.
+
+![Topic deletion](https://media.giphy.com/media/1yTgifHut4OYCaCgvP/source.gif)
+
+![Topic deletion with no confirmation](https://media.giphy.com/media/4To21zk1fonihRrZBU/source.gif)
 
