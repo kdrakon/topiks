@@ -13,8 +13,8 @@ use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use state::CurrentView;
 use state::State;
 use state::StateFNError;
-use util::io::IO;
 use BootstrapServer;
+use IO;
 
 struct FakeApiClient(HashMap<i16, Vec<u8>>); // ApiKey => Byte Response
 

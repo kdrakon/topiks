@@ -10,23 +10,24 @@ use api_client::ApiClient;
 use api_client::ApiClientProvider;
 use api_client::ApiClientTrait;
 use api_client::ApiRequestError;
-use event_bus::Event::*;
-use event_bus::Message::Delete;
-use event_bus::Message::*;
-use event_bus::MoveSelection::*;
-use event_bus::TopicQuery::*;
 use kafka_protocol::protocol_request::Request;
 use kafka_protocol::protocol_requests;
 use kafka_protocol::protocol_requests::*;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::findcoordinator_response::Coordinator;
 use kafka_protocol::protocol_responses::*;
+use BootstrapServer;
+use IO;
+
+use event_bus::Event::*;
+use event_bus::Message::Delete;
+use event_bus::Message::*;
+use event_bus::MoveSelection::*;
+use event_bus::TopicQuery::*;
 use state::CurrentView;
 use state::*;
 use user_interface::ui;
-use util::io::IO;
 use util::utils::Flatten;
-use BootstrapServer;
 
 #[derive(Clone)]
 pub struct ConsumerGroup(pub String, pub findcoordinator_response::Coordinator);

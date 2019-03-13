@@ -1,4 +1,6 @@
 SHA_COMMAND ?= shasum -a 512
+RUST_TARGET ?= x86_64-apple-darwin
+OS_TARGET ?= osx-10.13
 
 clean:
 	cargo clean

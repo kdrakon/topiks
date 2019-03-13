@@ -11,11 +11,12 @@ keywords = ["cli", "kafka"]
 lto = true
 panic = 'abort'
 
+[dependencies.topiks-kafka-client]
+git = "https://github.com/kdrakon/topiks-kafka-client"
+
 [dependencies]
-byteorder = "1.2.1"
 termion = "1.5.1"
 clap = "2.31.2"
-native-tls = "0.2.2"
 
 [dev-dependencies]
 proptest = "0.8.7"

@@ -1,69 +1,41 @@
-extern crate byteorder;
 extern crate clap;
-extern crate native_tls;
-#[cfg(test)]
-#[macro_use]
-extern crate proptest;
 extern crate termion;
+extern crate topiks_kafka_client;
 
 use std::env;
 use std::io::stdin;
 
-use clap::{App, Arg};
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
-use termion::screen::AlternateScreen;
-use termion::terminal_size;
-
 use api_client::ApiClient;
 use api_client::ApiClientTrait;
 use api_client::ApiRequestError;
-use event_bus::ConsumerGroup;
-use event_bus::Message;
-use event_bus::MoveSelection::*;
-use event_bus::TopicQuery::*;
+use clap::{App, Arg};
 use kafka_protocol::protocol_request::*;
 use kafka_protocol::protocol_requests::findcoordinator_request::CoordinatorType;
 use kafka_protocol::protocol_requests::findcoordinator_request::FindCoordinatorRequest;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::findcoordinator_response::FindCoordinatorResponse;
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use termion::screen::AlternateScreen;
+use termion::terminal_size;
+use topiks_kafka_client::*;
+
+use event_bus::ConsumerGroup;
+use event_bus::Message;
+use event_bus::MoveSelection::*;
+use event_bus::TopicQuery::*;
 use state::CurrentView;
 use state::DialogMessage;
 use user_interface::user_input;
 
-pub mod api_client;
 pub mod error_codes;
 pub mod event_bus;
-pub mod kafka_protocol;
 pub mod state;
 pub mod user_interface;
 pub mod util;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-
-#[derive(Clone, Debug)]
-pub struct BootstrapServer {
-    pub domain: String,
-    pub port: i32,
-    pub use_tls: bool,
-}
-
-impl BootstrapServer {
-    fn of(domain: String, port: i32, use_tls: bool) -> BootstrapServer {
-        BootstrapServer { domain, port, use_tls }
-    }
-    fn from_arg(addr_arg: &str, use_tls: bool) -> Option<BootstrapServer> {
-        let split: Vec<&str> = addr_arg.split(':').collect::<Vec<&str>>();
-        match split.as_slice() {
-            [domain_ip, port] => port.parse::<i32>().ok().map(|port| BootstrapServer::of(String::from(*domain_ip), port, use_tls)),
-            _ => None,
-        }
-    }
-    fn as_socket_addr(&self) -> String {
-        format!("{}:{}", self.domain, self.port)
-    }
-}
 
 struct AppConfig<'a> {
     bootstrap_server: BootstrapServer,
