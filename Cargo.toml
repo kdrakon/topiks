@@ -13,10 +13,12 @@ panic = 'abort'
 
 [dependencies.topiks-kafka-client]
 git = "https://github.com/kdrakon/topiks-kafka-client"
+#tag = "0.1.0-alpha+001"
 
 [dependencies]
 termion = "1.5.1"
 clap = "2.31.2"
+regex = "1.1.2"
 
 [dev-dependencies]
 proptest = "0.8.7"

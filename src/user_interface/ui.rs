@@ -64,7 +64,7 @@ const HELP: [(&str, &str); 16] = [
     ("/", "Enter search query for topic name"),
     ("n", "Find next search result"),
     ("r", "Refresh. Retrieves metadata from Kafka cluster"),
-    ("c", "Create a new topic"),
+    ("c", "Create a new topic with [topic]:[partitions]:[replication factor]"),
     (":", "Modify a resource (e.g. topic config) via text input"),
     ("d", "Delete a resource. Will delete a topic or reset a topic config"),
     ("Up⬆", "Move up one topic"),
