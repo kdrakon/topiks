@@ -69,7 +69,7 @@ fn main() -> Result<(), u8> {
     let app_config = AppConfig {
         bootstrap_server,
         consumer_group: matches.value_of("consumer-group"),
-        request_timeout_ms: 30_000,
+        request_timeout_ms: 300_000, // 5 minutes
         deletion_allowed: matches.is_present("delete"),
         deletion_confirmation: !matches.is_present("no-delete-confirmation"),
         modification_enabled: matches.is_present("modify"),
@@ -106,7 +106,7 @@ fn main() -> Result<(), u8> {
 
         sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone())).unwrap();
 
-        let create_topic_regex = Regex::new(r"^[A-Za-z0-9\._]+:[0-9]{1,3}:[0-9]{1,3}$").expect("Could not compile regex for creating topics");
+        let create_topic_regex = Regex::new(r"^[A-Za-z0-9\._]{1, 249}:[0-9]{1,3}:[0-9]{1,3}$").expect("Could not compile regex for creating topics");
 
         for key in stdin.keys() {
             match key.unwrap() {
@@ -138,8 +138,10 @@ fn main() -> Result<(), u8> {
                                         })
                                     });
                                     match create_topic {
-                                        Ok(create_topic) => sender.send(Message::Create(bootstrap_server(), create_topic)).unwrap(),
-                                        Err(err) => sender
+                                        Ok(create_topic) => {
+                                            sender.send(Message::Create(bootstrap_server(), create_topic, app_config.request_timeout_ms)).unwrap()
+                                        }
+                                        Err(_) => sender
                                             .send(Message::DisplayUIMessage(DialogMessage::Error("Invalid input for creating topic".to_string())))
                                             .unwrap(),
                                     }

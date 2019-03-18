@@ -27,7 +27,7 @@ use event_bus::TopicQuery::*;
 use state::CurrentView;
 use state::*;
 use user_interface::ui;
-use util::utils::Flatten;
+use util::utils::{controller_broker, Flatten};
 
 #[derive(Clone)]
 pub struct ConsumerGroup(pub String, pub findcoordinator_response::Coordinator);
@@ -83,7 +83,7 @@ pub enum Message {
     UserInput(String),
     Select(MoveSelection),
     SetTopicQuery(TopicQuery),
-    Create(KafkaServerAddr, Creation),
+    Create(KafkaServerAddr, Creation, i32),
     Delete(KafkaServerAddr, i32),
     ModifyValue(KafkaServerAddr, Option<String>),
 }
@@ -97,7 +97,7 @@ enum Event {
     UserInputUpdated(String),
     SelectionUpdated(StateFn<(CurrentView, usize)>),
     TopicQuerySet(Option<String>),
-    ResourceCreated(StateFn<Creation>),
+    ResourceCreated(StateFn<String>),
     ResourceDeleted(StateFn<Deletion>),
     ValueModified(StateFn<Modification>),
 }
@@ -310,10 +310,53 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
             NoQuery => TopicQuerySet(None),
         },
 
-        Create(bootstrap_sever, creation) => ResourceCreated(Box::from(move |state: &State| match &creation {
+        Create(bootstrap_sever, creation, request_timeout_ms) => ResourceCreated(Box::from(move |state: &State| match &creation {
             Creation::Topic { name, partitions, replication_factor } => {
-                println!("{}", name);
-                unimplemented!()
+                if state.current_view != CurrentView::Topics {
+                    Err(StateFNError::error("Cannot create topic here"))
+                } else {
+                    state
+                        .metadata
+                        .as_ref()
+                        .map(|metadata| {
+                            controller_broker(metadata)
+                                .map(|controller| {
+                                    create_topic(
+                                        api_client_provider(),
+                                        name.clone(),
+                                        *partitions,
+                                        *replication_factor,
+                                        controller,
+                                        bootstrap_sever.use_tls,
+                                        request_timeout_ms,
+                                    )
+                                    .into_result()
+                                    .map_err(|err| StateFNError::caused("Error creating topic", err))
+                                    .and_then(|response| {
+                                        let error_message = response
+                                            .response_message
+                                            .topic_errors
+                                            .into_iter()
+                                            .filter(|err| err.error_code != 0)
+                                            .collect::<Vec<_>>()
+                                            .first()
+                                            .map(|error| {
+                                                format!(
+                                                    "({}) {}",
+                                                    error.error_code,
+                                                    error.error_message.clone().unwrap_or("Unknown error".to_string())
+                                                )
+                                            });
+                                        match error_message {
+                                            Some(ref err) => Err(StateFNError::error(err)),
+                                            None => Ok(name.clone()),
+                                        }
+                                    })
+                                })
+                                .unwrap_or(Err(StateFNError::error("Could not find Kafka controller host from Metadata")))
+                        })
+                        .unwrap_or(Err(StateFNError::error("Topic metadata not available")))
+                }
             }
         })),
 
@@ -331,18 +374,13 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
                             if delete_topic_metadata.is_internal {
                                 Err(StateFNError::error("Can not delete internal topics"))
                             } else {
-                                metadata
-                                    .brokers
-                                    .iter()
-                                    .filter(|b| b.node_id == metadata.controller_id)
-                                    .collect::<Vec<&metadata_response::BrokerMetadata>>()
-                                    .first()
+                                controller_broker(&metadata)
                                     .map(|controller_broker| {
                                         let delete_topic_name = delete_topic_metadata.topic.clone();
                                         let result: Result<Response<deletetopics_response::DeleteTopicsResponse>, ApiRequestError> = delete_topic(
                                             api_client_provider(),
                                             &delete_topic_name,
-                                            &controller_broker,
+                                            controller_broker,
                                             bootstrap_server.use_tls,
                                             request_timeout_ms,
                                         )
@@ -520,7 +558,10 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             current_state.topic_name_query = query;
             Ok(current_state.clone())
         }
-        ResourceCreated(create_fn) => unimplemented!(),
+        ResourceCreated(create_fn) => create_fn(&current_state).map(|new_topic_name| {
+            current_state.dialog_message = Some(DialogMessage::Info(format!("Topic '{}' created. Press 'r' to refresh view.", new_topic_name)));
+            current_state.clone()
+        }),
         ResourceDeleted(delete_fn) => delete_fn(&current_state).map(|deleted: Deletion| match deleted {
             Deletion::Topic(topic) => {
                 current_state.marked_deleted.push(topic);
@@ -735,14 +776,14 @@ fn create_topic<T: ApiClientTrait + 'static>(
     use_tls: bool,
     request_timeout_ms: i32,
 ) -> IO<Response<createtopics_response::CreateTopicsResponse>, ApiRequestError> {
-    let bootstrap_server = KafkaServerAddr::of(controller_broker.host.clone(), controller_broker.port, use_tls);
+    let controller_server = KafkaServerAddr::of(controller_broker.host.clone(), controller_broker.port, use_tls);
 
     client.and_then_result(Box::new(move |client: T| {
         client.request(
-            &bootstrap_server,
+            &controller_server,
             Request::of(createtopics_request::CreateTopicsRequest {
                 create_topic_requests: vec![createtopics_request::Request {
-                    topic,
+                    topic: topic.clone(),
                     num_partitions,
                     replication_factor,
                     replica_assignments: vec![],
@@ -752,9 +793,7 @@ fn create_topic<T: ApiClientTrait + 'static>(
                 validate_only: false,
             }),
         )
-    }));
-
-    unimplemented!()
+    }))
 }
 
 fn delete_topic<T: ApiClientTrait + 'static>(
@@ -766,11 +805,11 @@ fn delete_topic<T: ApiClientTrait + 'static>(
 ) -> IO<Response<deletetopics_response::DeleteTopicsResponse>, ApiRequestError> {
     let delete_topic_name = delete_topic_name.clone();
     let controller_broker = controller_broker.clone();
-    let bootstrap_server = KafkaServerAddr::of(controller_broker.host.clone(), controller_broker.port, use_tls);
+    let controller_server = KafkaServerAddr::of(controller_broker.host.clone(), controller_broker.port, use_tls);
 
     client.and_then_result(Box::new(move |client: T| {
         client.request(
-            &bootstrap_server,
+            &controller_server,
             Request::of(deletetopics_request::DeleteTopicsRequest { topics: vec![delete_topic_name.clone()], timeout: request_timeout_ms }),
         )
     }))

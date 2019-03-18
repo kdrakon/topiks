@@ -1,5 +1,6 @@
 use std::cmp;
 use std::fmt::Display;
+use topiks_kafka_client::kafka_protocol::protocol_responses::metadata_response;
 
 pub fn pad_right(input: &String, width: u16) -> String {
     let str_len = cmp::min(input.len() as u16, width);
@@ -23,6 +24,16 @@ pub fn current_ms() -> u64 {
     let now = SystemTime::now();
     let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Failed to get current time");
     (since_the_epoch.as_secs() * 1000) + (since_the_epoch.subsec_nanos() as u64 / 1_000_000)
+}
+
+pub fn controller_broker(metadata: &metadata_response::MetadataResponse) -> Option<&metadata_response::BrokerMetadata> {
+    metadata
+        .brokers
+        .iter()
+        .filter(|b| b.node_id == metadata.controller_id)
+        .collect::<Vec<&metadata_response::BrokerMetadata>>()
+        .first()
+        .map(|broker_metadata| *broker_metadata)
 }
 
 pub trait VecToCSV {
