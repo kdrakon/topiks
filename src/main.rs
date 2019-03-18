@@ -59,7 +59,7 @@ fn main() -> Result<(), u8> {
         .arg(Arg::with_name("consumer-group").long("consumer-group").short("c").takes_value(true).help("Consumer group for fetching offsets"))
         .arg(Arg::with_name("delete").short("D").help("Enable topic/config deletion"))
         .arg(Arg::with_name("no-delete-confirmation").long("no-delete-confirmation").help("Disable delete confirmation <Danger!>"))
-        .arg(Arg::with_name("modify").short("M").help("Enable modification of topic configurations and other resources"))
+        .arg(Arg::with_name("modify").short("M").help("Enable creation of topics and modification of topic configurations"))
         .get_matches();
 
     let enable_tls = matches.is_present("tls");
@@ -125,37 +125,39 @@ fn main() -> Result<(), u8> {
                     sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone())).unwrap();
                 }
                 Key::Char('c') => {
-                    let (_, height) = terminal_size().unwrap();
-                    match user_input::read(":", (1, height), sender.clone()) {
-                        Ok(Some(ref input)) if create_topic_regex.is_match(input.as_str()) => {
-                            match input.split(":").collect::<Vec<&str>>().as_slice() {
-                                &[topic, partitions, replication_factor] => {
-                                    let create_topic = partitions.to_string().parse::<i32>().and_then(|partitions| {
-                                        replication_factor.to_string().parse::<i16>().map(|replication_factor| Creation::Topic {
-                                            name: topic.to_string(),
-                                            partitions,
-                                            replication_factor,
-                                        })
-                                    });
-                                    match create_topic {
-                                        Ok(create_topic) => {
-                                            sender.send(Message::Create(bootstrap_server(), create_topic, app_config.request_timeout_ms)).unwrap()
+                    if app_config.modification_enabled {
+                        let (_, height) = terminal_size().unwrap();
+                        match user_input::read("▶︎ ", (1, height), sender.clone()) {
+                            Ok(Some(ref input)) if create_topic_regex.is_match(input.as_str()) => {
+                                match input.split(":").collect::<Vec<&str>>().as_slice() {
+                                    &[topic, partitions, replication_factor] => {
+                                        let create_topic = partitions.to_string().parse::<i32>().and_then(|partitions| {
+                                            replication_factor.to_string().parse::<i16>().map(|replication_factor| Creation::Topic {
+                                                name: topic.to_string(),
+                                                partitions,
+                                                replication_factor,
+                                            })
+                                        });
+                                        match create_topic {
+                                            Ok(create_topic) => {
+                                                sender.send(Message::Create(bootstrap_server(), create_topic, app_config.request_timeout_ms)).unwrap()
+                                            }
+                                            Err(_) => sender
+                                                .send(Message::DisplayUIMessage(DialogMessage::Error("Invalid input for creating topic".to_string())))
+                                                .unwrap(),
                                         }
-                                        Err(_) => sender
-                                            .send(Message::DisplayUIMessage(DialogMessage::Error("Invalid input for creating topic".to_string())))
-                                            .unwrap(),
                                     }
+                                    _ => sender
+                                        .send(Message::DisplayUIMessage(DialogMessage::Error("Invalid input for creating topic".to_string())))
+                                        .unwrap(),
                                 }
-                                _ => sender
-                                    .send(Message::DisplayUIMessage(DialogMessage::Error("Invalid input for creating topic".to_string())))
-                                    .unwrap(),
                             }
+                            _ => sender
+                                .send(Message::DisplayUIMessage(DialogMessage::Error(
+                                    "Input should be [topic]:[partitions]:[replication factor]".to_string(),
+                                )))
+                                .unwrap(),
                         }
-                        _ => sender
-                            .send(Message::DisplayUIMessage(DialogMessage::Error(
-                                "Input should be [topic]:[partitions]:[replication factor]".to_string(),
-                            )))
-                            .unwrap(),
                     }
                 }
                 Key::Char('d') => {

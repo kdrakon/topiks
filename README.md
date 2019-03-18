@@ -24,7 +24,7 @@ USAGE:
 FLAGS:
     -D                              Enable topic/config deletion
     -h, --help                      Prints help information
-    -M                              Enable modification of topic configurations and other resources
+    -M                              Enable creation of topics and modification of topic configurations
         --no-delete-confirmation    Disable delete confirmation <Danger!>
         --tls                       Enable TLS
     -V, --version                   Prints version information
