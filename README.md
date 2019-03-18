@@ -8,7 +8,7 @@ An interactive CLI tool for managing Kafka topics.
 ## Features
 - compatible with Apache Kafka >=2.0
 - list topics, configurations, and offsets
-- _interactively create topics (**WIP**)_
+- interactively create topics
 - selectively delete topics
 - modify a topics configuration
 - _modify a topics replication factor (**WIP**)_
@@ -45,6 +45,7 @@ ARGS:
  / → Enter search query for topic name
  n → Find next search result
  r → Refresh. Retrieves metadata from Kafka cluster
+ c → Create a new topic with [topic]:[partitions]:[replication factor]
  : → Modify a resource (e.g. topic config) via text input
  d → Delete a resource. Will delete a topic or reset a topic config
  Up⬆ → Move up one topic
@@ -94,6 +95,10 @@ TLS/SSL is capable via the [rust-native-tls](https://github.com/sfackler/rust-na
 - Topic configuration. In this case, Topiks applies a config override. To reset the override, simply _delete_ (`d`) the config and it will revert to the global default.
 
 ![Topic configuration](https://media.giphy.com/media/5WISIFAMqL7arpUI7P/source.gif)
+
+- Topic creation
+
+![Topic creation](https://media.giphy.com/media/uW0OJov8h6PBLdlJOH/source.gif)
 
 - Topic deletion. You can also override the delete confirmation if you're absolutely sure you know what you're doing.
 
