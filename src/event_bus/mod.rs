@@ -16,7 +16,7 @@ use kafka_protocol::protocol_requests::*;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::findcoordinator_response::Coordinator;
 use kafka_protocol::protocol_responses::*;
-use BootstrapServer;
+use KafkaServerAddr;
 use IO;
 
 use event_bus::Event::*;
@@ -49,6 +49,11 @@ pub enum TopicQuery {
     Query(String),
 }
 
+#[derive(Clone, Debug)]
+pub enum Creation {
+    Topic { name: String, partitions: i32, replication_factor: i16 },
+}
+
 pub enum Deletion {
     Topic(String),
     Config(String),
@@ -72,14 +77,15 @@ pub enum MetadataPayload {
 pub enum Message {
     Quit,
     Noop,
-    GetMetadata(BootstrapServer, Option<ConsumerGroup>),
+    GetMetadata(KafkaServerAddr, Option<ConsumerGroup>),
     ToggleView(CurrentView),
     DisplayUIMessage(DialogMessage),
     UserInput(String),
     Select(MoveSelection),
     SetTopicQuery(TopicQuery),
-    Delete(BootstrapServer, i32),
-    ModifyValue(BootstrapServer, Option<String>),
+    Create(KafkaServerAddr, Creation),
+    Delete(KafkaServerAddr, i32),
+    ModifyValue(KafkaServerAddr, Option<String>),
 }
 
 enum Event {
@@ -91,6 +97,7 @@ enum Event {
     UserInputUpdated(String),
     SelectionUpdated(StateFn<(CurrentView, usize)>),
     TopicQuerySet(Option<String>),
+    ResourceCreated(StateFn<Creation>),
     ResourceDeleted(StateFn<Deletion>),
     ValueModified(StateFn<Modification>),
 }
@@ -303,6 +310,13 @@ fn to_event<T: ApiClientTrait + 'static>(message: Message, api_client_provider: 
             NoQuery => TopicQuerySet(None),
         },
 
+        Create(bootstrap_sever, creation) => ResourceCreated(Box::from(move |state: &State| match &creation {
+            Creation::Topic { name, partitions, replication_factor } => {
+                println!("{}", name);
+                unimplemented!()
+            }
+        })),
+
         Delete(bootstrap_server, request_timeout_ms) => ResourceDeleted(Box::from(move |state: &State| match state.current_view {
             CurrentView::Partitions => Err(StateFNError::error("Partition deletion not supported")),
             CurrentView::HelpScreen => Err(StateFNError::error("You can't delete this...")),
@@ -506,6 +520,7 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             current_state.topic_name_query = query;
             Ok(current_state.clone())
         }
+        ResourceCreated(create_fn) => unimplemented!(),
         ResourceDeleted(delete_fn) => delete_fn(&current_state).map(|deleted: Deletion| match deleted {
             Deletion::Topic(topic) => {
                 current_state.marked_deleted.push(topic);
@@ -535,7 +550,7 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
 
 fn retrieve_metadata<T: ApiClientTrait + 'static>(
     client: IO<T, ApiRequestError>,
-    bootstrap_server: &BootstrapServer,
+    bootstrap_server: &KafkaServerAddr,
 ) -> IO<metadata_response::MetadataResponse, ApiRequestError> {
     let bootstrap_server = bootstrap_server.clone();
     client.and_then_result(Box::new(move |client: T| {
@@ -553,7 +568,7 @@ fn retrieve_metadata<T: ApiClientTrait + 'static>(
 
 fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
     client: IO<T, ApiRequestError>,
-    bootstrap_server: &BootstrapServer,
+    bootstrap_server: &KafkaServerAddr,
     topic_name: &String,
 ) -> IO<describeconfigs_response::Resource, ApiRequestError> {
     let bootstrap_server = bootstrap_server.clone();
@@ -596,7 +611,7 @@ fn retrieve_topic_metadata<T: ApiClientTrait + 'static>(
 
 fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
     client: IO<T, ApiRequestError>,
-    bootstrap_server: &BootstrapServer,
+    bootstrap_server: &KafkaServerAddr,
     metadata_response: &metadata_response::MetadataResponse,
     topic_metadata: &metadata_response::TopicMetadata,
 ) -> IO<(Vec<metadata_response::PartitionMetadata>, HashMap<i32, listoffsets_response::PartitionResponse>), ApiRequestError> {
@@ -609,8 +624,8 @@ fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
         let broker_id_to_host_map = metadata_response
             .brokers
             .iter()
-            .map(|b| (b.node_id, BootstrapServer::of(b.host.clone(), b.port, bootstrap_server.use_tls)))
-            .collect::<HashMap<i32, BootstrapServer>>();
+            .map(|b| (b.node_id, KafkaServerAddr::of(b.host.clone(), b.port, bootstrap_server.use_tls)))
+            .collect::<HashMap<i32, KafkaServerAddr>>();
 
         let mut sorted_partition_metadata = partition_metadata.clone();
         sorted_partition_metadata.sort_by(|a, b| a.partition.cmp(&b.partition));
@@ -633,7 +648,7 @@ fn retrieve_partition_metadata_and_offsets<T: ApiClientTrait + 'static>(
                     },
                 )
             })
-            .collect::<Vec<(&BootstrapServer, listoffsets_request::Topic)>>();
+            .collect::<Vec<(&KafkaServerAddr, listoffsets_request::Topic)>>();
 
         let partition_offset_responses = partition_offset_requests
             .into_iter()
@@ -671,7 +686,7 @@ fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
     let group_id = group_id.clone();
     let coordinator = coordinator.clone();
     let topic_metadata = topic_metadata.clone();
-    let bootstrap_server = BootstrapServer::of(coordinator.host.clone(), coordinator.port, use_tls);
+    let coordinator_server = KafkaServerAddr::of(coordinator.host.clone(), coordinator.port, use_tls);
 
     client.and_then_result(Box::from(move |client: T| {
         let topic = offsetfetch_request::Topic {
@@ -681,7 +696,7 @@ fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
 
         let offsetfetch_result: Result<Response<offsetfetch_response::OffsetFetchResponse>, ApiRequestError> = client
             .request(
-                &bootstrap_server,
+                &coordinator_server,
                 Request::of(offsetfetch_request::OffsetFetchRequest { group_id: group_id.clone(), topics: vec![topic.clone()] }),
             )
             .and_then(|result: Response<offsetfetch_response::OffsetFetchResponse>| {
@@ -711,6 +726,37 @@ fn retrieve_consumer_offsets<T: ApiClientTrait + 'static>(
     }))
 }
 
+fn create_topic<T: ApiClientTrait + 'static>(
+    client: IO<T, ApiRequestError>,
+    topic: String,
+    num_partitions: i32,
+    replication_factor: i16,
+    controller_broker: &metadata_response::BrokerMetadata,
+    use_tls: bool,
+    request_timeout_ms: i32,
+) -> IO<Response<createtopics_response::CreateTopicsResponse>, ApiRequestError> {
+    let bootstrap_server = KafkaServerAddr::of(controller_broker.host.clone(), controller_broker.port, use_tls);
+
+    client.and_then_result(Box::new(move |client: T| {
+        client.request(
+            &bootstrap_server,
+            Request::of(createtopics_request::CreateTopicsRequest {
+                create_topic_requests: vec![createtopics_request::Request {
+                    topic,
+                    num_partitions,
+                    replication_factor,
+                    replica_assignments: vec![],
+                    config_entries: vec![],
+                }],
+                timeout: request_timeout_ms,
+                validate_only: false,
+            }),
+        )
+    }));
+
+    unimplemented!()
+}
+
 fn delete_topic<T: ApiClientTrait + 'static>(
     client: IO<T, ApiRequestError>,
     delete_topic_name: &String,
@@ -720,7 +766,7 @@ fn delete_topic<T: ApiClientTrait + 'static>(
 ) -> IO<Response<deletetopics_response::DeleteTopicsResponse>, ApiRequestError> {
     let delete_topic_name = delete_topic_name.clone();
     let controller_broker = controller_broker.clone();
-    let bootstrap_server = BootstrapServer::of(controller_broker.host.clone(), controller_broker.port, use_tls);
+    let bootstrap_server = KafkaServerAddr::of(controller_broker.host.clone(), controller_broker.port, use_tls);
 
     client.and_then_result(Box::new(move |client: T| {
         client.request(
@@ -732,7 +778,7 @@ fn delete_topic<T: ApiClientTrait + 'static>(
 
 fn alter_config<T: ApiClientTrait + 'static>(
     client: IO<T, ApiRequestError>,
-    bootstrap_server: &BootstrapServer,
+    bootstrap_server: &KafkaServerAddr,
     resource: &alterconfigs_request::Resource,
 ) -> Result<(), StateFNError> {
     let resource = resource.clone();

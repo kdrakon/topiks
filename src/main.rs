@@ -1,4 +1,5 @@
 extern crate clap;
+extern crate regex;
 extern crate termion;
 extern crate topiks_kafka_client;
 
@@ -14,6 +15,7 @@ use kafka_protocol::protocol_requests::findcoordinator_request::CoordinatorType;
 use kafka_protocol::protocol_requests::findcoordinator_request::FindCoordinatorRequest;
 use kafka_protocol::protocol_response::*;
 use kafka_protocol::protocol_responses::findcoordinator_response::FindCoordinatorResponse;
+use regex::Regex;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -22,6 +24,7 @@ use termion::terminal_size;
 use topiks_kafka_client::*;
 
 use event_bus::ConsumerGroup;
+use event_bus::Creation;
 use event_bus::Message;
 use event_bus::MoveSelection::*;
 use event_bus::TopicQuery::*;
@@ -38,7 +41,7 @@ pub mod util;
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 struct AppConfig<'a> {
-    bootstrap_server: BootstrapServer,
+    bootstrap_server: KafkaServerAddr,
     consumer_group: Option<&'a str>,
     request_timeout_ms: i32,
     deletion_allowed: bool,
@@ -61,7 +64,7 @@ fn main() -> Result<(), u8> {
 
     let enable_tls = matches.is_present("tls");
     let bootstrap_server =
-        BootstrapServer::from_arg(matches.value_of("bootstrap-server").unwrap(), enable_tls).ok_or(error_codes::COULD_NOT_PARSE_BOOTSTRAP_SERVER)?;
+        KafkaServerAddr::from_arg(matches.value_of("bootstrap-server").unwrap(), enable_tls).ok_or(error_codes::COULD_NOT_PARSE_BOOTSTRAP_SERVER)?;
 
     let app_config = AppConfig {
         bootstrap_server,
@@ -103,6 +106,8 @@ fn main() -> Result<(), u8> {
 
         sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone())).unwrap();
 
+        let create_topic_regex = Regex::new(r"^[A-Za-z0-9\._]+:[0-9]{1,3}:[0-9]{1,3}$").expect("Could not compile regex for creating topics");
+
         for key in stdin.keys() {
             match key.unwrap() {
                 Key::Char('h') => {
@@ -119,11 +124,43 @@ fn main() -> Result<(), u8> {
                     sender.send(Message::DisplayUIMessage(DialogMessage::None)).unwrap();
                     sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone())).unwrap();
                 }
+                Key::Char('c') => {
+                    let (_, height) = terminal_size().unwrap();
+                    match user_input::read(":", (1, height), sender.clone()) {
+                        Ok(Some(ref input)) if create_topic_regex.is_match(input.as_str()) => {
+                            match input.split(":").collect::<Vec<&str>>().as_slice() {
+                                &[topic, partitions, replication_factor] => {
+                                    let create_topic = partitions.to_string().parse::<i32>().and_then(|partitions| {
+                                        replication_factor.to_string().parse::<i16>().map(|replication_factor| Creation::Topic {
+                                            name: topic.to_string(),
+                                            partitions,
+                                            replication_factor,
+                                        })
+                                    });
+                                    match create_topic {
+                                        Ok(create_topic) => sender.send(Message::Create(bootstrap_server(), create_topic)).unwrap(),
+                                        Err(err) => sender
+                                            .send(Message::DisplayUIMessage(DialogMessage::Error("Invalid input for creating topic".to_string())))
+                                            .unwrap(),
+                                    }
+                                }
+                                _ => sender
+                                    .send(Message::DisplayUIMessage(DialogMessage::Error("Invalid input for creating topic".to_string())))
+                                    .unwrap(),
+                            }
+                        }
+                        _ => sender
+                            .send(Message::DisplayUIMessage(DialogMessage::Error(
+                                "Input should be [topic]:[partitions]:[replication factor]".to_string(),
+                            )))
+                            .unwrap(),
+                    }
+                }
                 Key::Char('d') => {
                     if app_config.deletion_allowed {
                         sender.send(Message::DisplayUIMessage(DialogMessage::Warn(format!("Deleting...")))).unwrap();
                         if app_config.deletion_confirmation {
-                            let (_width, height) = terminal_size().unwrap();
+                            let (_, height) = terminal_size().unwrap();
                             match user_input::read("[Yes]?: ", (1, height), sender.clone()) {
                                 Ok(Some(confirm)) => {
                                     if confirm.eq("Yes") {

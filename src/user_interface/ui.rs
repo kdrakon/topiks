@@ -56,7 +56,7 @@ pub fn update_with_state(state: &State) {
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
 
-const HELP: [(&str, &str); 15] = [
+const HELP: [(&str, &str); 16] = [
     ("h", "Toggle this screen"),
     ("q", "Quit"),
     ("p", "Toggle partitions"),
@@ -64,6 +64,7 @@ const HELP: [(&str, &str); 15] = [
     ("/", "Enter search query for topic name"),
     ("n", "Find next search result"),
     ("r", "Refresh. Retrieves metadata from Kafka cluster"),
+    ("c", "Create a new topic"),
     (":", "Modify a resource (e.g. topic config) via text input"),
     ("d", "Delete a resource. Will delete a topic or reset a topic config"),
     ("Up⬆", "Move up one topic"),
