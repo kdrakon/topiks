@@ -13,13 +13,13 @@ use kafka_protocol::protocol_serializable::ProtocolSerializable;
 use state::CurrentView;
 use state::State;
 use state::StateFNError;
-use BootstrapServer;
+use KafkaServerAddr;
 use IO;
 
 struct FakeApiClient(HashMap<i16, Vec<u8>>); // ApiKey => Byte Response
 
 impl ApiClientTrait for FakeApiClient {
-    fn request<T, U>(&self, _bootstrap_server: &BootstrapServer, request: Request<T>) -> Result<Response<U>, ApiRequestError>
+    fn request<T, U>(&self, _server_addr: &KafkaServerAddr, request: Request<T>) -> Result<Response<U>, ApiRequestError>
     where
         T: ProtocolSerializable,
         Vec<u8>: ProtocolDeserializable<Response<U>>,
@@ -37,8 +37,8 @@ fn swap_state(state: &RefCell<State>, event: Event) {
     }
 }
 
-fn test_bootstrap_server() -> BootstrapServer {
-    BootstrapServer::of(String::from("fake"), 9092, false)
+fn test_bootstrap_server() -> KafkaServerAddr {
+    KafkaServerAddr::of(String::from("fake"), 9092, false)
 }
 
 fn empty_api_client_provider() -> ApiClientProvider<FakeApiClient> {
