@@ -3,13 +3,18 @@ pub fn new(offset: i64, max_offset: i64, width: i64) -> String {
     let max_offset = max_offset.max(1);
 
     let whole_blocks = (offset * width) / max_offset;
-    let partial_block = ((offset * width) % max_offset) as f64 / max_offset as f64;
+    let last_block = match whole_blocks {
+        0 => None,
+        n if n == width => None,
+        _ => Some(((offset * width) % max_offset) as f64 / max_offset as f64),
+    };
+    let empty_blocks = width - whole_blocks - if last_block.is_some() { 1 } else { 0 };
 
     format!(
         "[{}{}{}]",
         vec![WHOLE; whole_blocks as usize].join(""),
-        partial_block_str(partial_block),
-        vec![EMPTY; (width - whole_blocks - 1) as usize].join("")
+        last_block.map(last_block_str).unwrap_or(""),
+        vec![EMPTY; empty_blocks as usize].join("")
     )
 }
 
@@ -23,8 +28,8 @@ const FIVE_EIGHTHS: &str = "▋";
 const THREE_QUARTERS: &str = "▊";
 const SEVEN_EIGHTHS: &str = "▉";
 
-fn partial_block_str(percent: f64) -> &'static str {
-    if percent <= 0_f64 {
+fn last_block_str(percent: f64) -> &'static str {
+    if percent == 0_f64 {
         EMPTY
     } else if percent <= 0.125_f64 {
         ONE_EIGHTH
