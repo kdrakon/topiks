@@ -86,23 +86,21 @@ TLS/SSL is capable via the [rust-native-tls](https://github.com/sfackler/rust-na
 
 - Listing and searching for topics
 
-![Listing and searching for topics](https://media.giphy.com/media/uAC8ZsyWXCXBHjD3Pm/source.gif)
+![Listing and searching for topics](https://media.giphy.com/media/9Pgz8yJOB8RDTOyDPL/source.gif)
 
 - Looking at partitions and offsets. In this case, we can see the consumer group has read three messages across the partitions.
 
-![Looking at partitions and offsets](https://media.giphy.com/media/iAQ9GQL2YhHPFif946/source.gif)
+![Looking at partitions and offsets](https://media.giphy.com/media/fjyp0OZqs0TXIZbeil/source.gif)
 
 - Topic configuration. In this case, Topiks applies a config override. To reset the override, simply _delete_ (`d`) the config and it will revert to the global default.
 
-![Topic configuration](https://media.giphy.com/media/5WISIFAMqL7arpUI7P/source.gif)
+![Topic configuration](https://media.giphy.com/media/fQovPSOuIwB6BIle7q/source.gif)
 
-- Topic creation
+- Topic creation and deletion.
 
-![Topic creation](https://media.giphy.com/media/vuYKYU2Dgf1E3tciVl/source.gif)
+![Topic creation and deletion](https://media.giphy.com/media/9oIFgyK3paNmmo1RUW/source.gif)
 
-- Topic deletion. You can also override the delete confirmation if you're absolutely sure you know what you're doing.
+- You can also override the delete confirmation if you're absolutely sure you know what you're doing.
 
-![Topic deletion](https://media.giphy.com/media/1yTgifHut4OYCaCgvP/source.gif)
-
-![Topic deletion with no confirmation](https://media.giphy.com/media/4To21zk1fonihRrZBU/source.gif)
+![Topic deletion with no confirmation](https://media.giphy.com/media/9D6PuYyr7rdXWUDozH/source.gif)
 
