@@ -98,7 +98,7 @@ TLS/SSL is capable via the [rust-native-tls](https://github.com/sfackler/rust-na
 
 - Topic creation
 
-![Topic creation](https://media.giphy.com/media/uW0OJov8h6PBLdlJOH/source.gif)
+![Topic creation](https://media.giphy.com/media/vuYKYU2Dgf1E3tciVl/source.gif)
 
 - Topic deletion. You can also override the delete confirmation if you're absolutely sure you know what you're doing.
 
