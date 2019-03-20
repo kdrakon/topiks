@@ -18,13 +18,21 @@ where
     A: SelectableListItem,
 {
     pub fn display(&self, screen: &mut impl Write, (start_x, start_y): (u16, u16), width: u16) {
-        write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset).unwrap();
-        self.list.iter().for_each(|list_item| {
-            let display = list_item.display();
-            write!(screen, "{}{}", display, style::Reset).unwrap();
-            write!(screen, "{}{}", cursor::Left(width), cursor::Down(1)).unwrap();
-        });
-        write!(screen, "{}{}", cursor::Goto(start_x, start_y), style::Reset).unwrap();
+        let list_items = self
+            .list
+            .iter()
+            .map(|list_item| format!("{}{}{}{}", list_item.display(), style::Reset, cursor::Left(width), cursor::Down(1)))
+            .collect::<Vec<String>>()
+            .join("");
+
+        write!(
+            screen,
+            "{cursor_to_start}{style_reset}{list_items}{cursor_to_start}{style_reset}",
+            cursor_to_start = cursor::Goto(start_x, start_y),
+            style_reset = style::Reset,
+            list_items = list_items
+        )
+        .unwrap();
     }
 }
 
