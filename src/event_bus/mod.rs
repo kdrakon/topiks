@@ -601,7 +601,7 @@ fn retrieve_metadata<T: ApiClientTrait + 'static>(
         result.map(|response| {
             let mut metadata_response = response.response_message;
             // sort by topic names before returning
-            metadata_response.topic_metadata.sort_by(|a, b| a.topic.cmp(&b.topic));
+            metadata_response.topic_metadata.sort_by(|a, b| a.topic.to_lowercase().cmp(&b.topic.to_lowercase()));
             metadata_response
         })
     }))
