@@ -114,10 +114,10 @@ fn show_topics(
         let list_items = indexed
             .iter()
             .map(|&(topic_metadata, index)| {
-                let topic_name = topic_metadata.topic.clone();
+                let topic_name = topic_metadata.topic.as_str();
                 let partitions = topic_metadata.partition_metadata.len();
 
-                let item = if marked_deleted.contains(&topic_name) {
+                let item = if marked_deleted.contains(&topic_metadata.topic) {
                     Deleted(topic_name, partitions)
                 } else if topic_metadata.is_internal {
                     Internal(topic_name, partitions)

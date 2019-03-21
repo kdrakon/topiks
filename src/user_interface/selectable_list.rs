@@ -40,14 +40,14 @@ pub trait SelectableListItem {
     fn display(&self) -> String;
 }
 
-pub enum TopicListItem {
-    Normal(String, usize),
-    Internal(String, usize),
-    Deleted(String, usize),
-    Selected(Box<TopicListItem>),
+pub enum TopicListItem<'a> {
+    Normal(&'a str, usize),
+    Internal(&'a str, usize),
+    Deleted(&'a str, usize),
+    Selected(Box<TopicListItem<'a>>),
 }
 
-impl SelectableListItem for TopicListItem {
+impl<'a> SelectableListItem for TopicListItem<'a> {
     fn display(&self) -> String {
         match &self {
             TopicListItem::Normal(label, partitions) => {
