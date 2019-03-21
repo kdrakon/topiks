@@ -21,7 +21,10 @@ where
         let list_items = self
             .list
             .iter()
-            .map(|list_item| format!("{}{}{}{}", list_item.display(), style::Reset, cursor::Left(width), cursor::Down(1)))
+            .map(|list_item| {
+                let display = list_item.display();
+                format!("{}{}{}{}", display, style::Reset, cursor::Left(display.len() as u16), cursor::Down(1))
+            })
             .collect::<Vec<String>>()
             .join("");
 
