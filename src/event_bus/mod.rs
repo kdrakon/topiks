@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::cell::RefMut;
 use std::collections::HashMap;
+use std::io::{stdout, Write};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
@@ -16,6 +17,8 @@ use kafka_protocol::protocol_requests::*;
 use kafka_protocol::protocol_response::Response;
 use kafka_protocol::protocol_responses::findcoordinator_response::Coordinator;
 use kafka_protocol::protocol_responses::*;
+use termion::raw::IntoRawMode;
+use termion::screen::AlternateScreen;
 use KafkaServerAddr;
 use IO;
 
@@ -104,10 +107,11 @@ enum Event {
 
 pub fn start() -> Sender<Message> {
     let (sender, receiver): (Sender<Message>, Receiver<Message>) = mpsc::channel();
-
     let thread_sender = sender.clone();
+
     thread::spawn(move || {
         let state = RefCell::new(State::new()); // RefCell for interior mutability
+        let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
 
         for message in receiver {
             match to_event(message, Box::new(|| IO::new(Box::new(|| Ok(ApiClient::new()))))) {
@@ -122,10 +126,12 @@ pub fn start() -> Sender<Message> {
                             thread_sender.send(Message::DisplayUIMessage(DialogMessage::Error(format!("{}: {}", error, cause)))).unwrap();
                         }
                     }
-                    ui::update_with_state(&state.borrow());
+                    ui::update_with_state(&state.borrow(), screen);
                 }
             }
         }
+
+        screen.flush().unwrap(); // final flush before handing screen back to shell
     });
 
     sender

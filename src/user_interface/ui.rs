@@ -1,10 +1,8 @@
-use std::io::{stdout, Write};
+use std::io::Write;
 
 use termion::clear;
 use termion::color;
 use termion::cursor;
-use termion::raw::IntoRawMode;
-use termion::screen::AlternateScreen;
 use termion::style;
 use termion::terminal_size;
 
@@ -26,8 +24,7 @@ use util::paged_vec::PagedVec;
 use util::utils;
 use util::utils::pad_right;
 
-pub fn update_with_state(state: &State) {
-    let screen = &mut AlternateScreen::from(stdout().into_raw_mode().unwrap());
+pub fn update_with_state(state: &State, screen: &mut impl Write) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
 
     if let Some(ref metadata) = state.metadata {
