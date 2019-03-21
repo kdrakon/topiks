@@ -154,12 +154,8 @@ fn show_topic_partitions(
                 let consumer_offset = partition_info_state.consumer_offsets.get(&partition_metadata.partition).map(|p| p.offset).unwrap_or(-1);
                 let partition_offset = partition_info_state.partition_offsets.get(&partition_metadata.partition).map(|p| p.offset).unwrap_or(-1);
 
-                let item = Normal {
-                    partition: partition_metadata.partition,
-                    partition_metadata: (*partition_metadata).clone(),
-                    consumer_offset,
-                    partition_offset,
-                };
+                let item =
+                    Normal { partition: partition_metadata.partition, partition_metadata: &partition_metadata, consumer_offset, partition_offset };
                 if page_index == index {
                     Selected(Box::from(item))
                 } else {

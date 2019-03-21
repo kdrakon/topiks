@@ -70,12 +70,12 @@ impl<'a> SelectableListItem for TopicListItem<'a> {
     }
 }
 
-pub enum PartitionListItem {
-    Normal { partition: i32, partition_metadata: PartitionMetadata, consumer_offset: i64, partition_offset: i64 },
-    Selected(Box<PartitionListItem>),
+pub enum PartitionListItem<'a> {
+    Normal { partition: i32, partition_metadata: &'a PartitionMetadata, consumer_offset: i64, partition_offset: i64 },
+    Selected(Box<PartitionListItem<'a>>),
 }
 
-impl SelectableListItem for PartitionListItem {
+impl<'a> SelectableListItem for PartitionListItem<'a> {
     fn display(&self) -> String {
         use self::PartitionListItem::*;
         match &self {
