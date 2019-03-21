@@ -82,19 +82,21 @@ fn show_help(screen: &mut impl Write) {
 }
 
 fn show_dialog_header(screen: &mut impl Write, width: u16, metadata: &MetadataResponse, message: &Option<DialogMessage>) {
-    write!(screen, "{}{}", cursor::Goto(1, 1), color::Fg(color::Black)).unwrap();
-    match message.as_ref() {
+    let dialog = match message.as_ref() {
         None => {
             let cluster_name = metadata.cluster_id.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
             let header = format!("cluster:{} brokers:{} topics:{}", cluster_name, metadata.brokers.len(), metadata.topic_metadata.len());
-            write!(screen, "{}{}{}{}", color::Fg(color::White), cursor::Right(width - (header.len() as u16)), style::Bold, header).unwrap();
+            Some(format!("{}{}{}{}", color::Fg(color::White), cursor::Right(width - (header.len() as u16)), style::Bold, header))
         }
-        Some(&DialogMessage::None) => (),
-        Some(DialogMessage::Error(error)) => write!(screen, "{}{}", color::Bg(color::LightRed), pad_right(&error, width)).unwrap(),
-        Some(DialogMessage::Warn(warn)) => write!(screen, "{}{}", color::Bg(color::LightYellow), pad_right(&warn, width)).unwrap(),
-        Some(DialogMessage::Info(info)) => write!(screen, "{}{}", color::Bg(color::LightBlue), pad_right(&info, width)).unwrap(),
+        Some(DialogMessage::None) => None,
+        Some(DialogMessage::Error(error)) => Some(format!("{}{}", color::Bg(color::LightRed), pad_right(&error, width))),
+        Some(DialogMessage::Warn(warn)) => Some(format!("{}{}", color::Bg(color::LightYellow), pad_right(&warn, width))),
+        Some(DialogMessage::Info(info)) => Some(format!("{}{}", color::Bg(color::LightBlue), pad_right(&info, width))),
+    };
+
+    if let Some(dialog) = dialog {
+        write!(screen, "{}{}{}{}", cursor::Goto(1, 1), color::Fg(color::Black), dialog, style::Reset).unwrap();
     }
-    write!(screen, "{}", style::Reset).unwrap();
 }
 
 fn show_topics(
