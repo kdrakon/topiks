@@ -5,7 +5,7 @@ use topiks_kafka_client::kafka_protocol::protocol_responses::metadata_response;
 pub fn pad_right(input: &String, width: u16) -> String {
     let str_len = cmp::min(input.len() as u16, width);
     let pad_length = cmp::max(width - str_len, 0);
-    (0..pad_length).map(|_i| String::from(" ")).fold(input.clone(), |a, b| format!("{}{}", a, b))
+    format!("{input}{padding}", input = input, padding = vec![" "; pad_length as usize].join(""))
 }
 
 pub fn bool_yes_no(b: bool) -> String {
