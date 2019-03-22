@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use termion::{color, cursor, style};
+use termion::{clear, color, cursor, style};
 
 use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
 use user_interface::offset_progress_bar;
@@ -23,7 +23,7 @@ where
             .iter()
             .map(|list_item| {
                 let display = list_item.display();
-                format!("{}{}{}{}", display, style::Reset, cursor::Left(display.len() as u16), cursor::Down(1))
+                format!("{}{}{}{}{}", display, style::Reset, clear::UntilNewline, cursor::Left(display.len() as u16), cursor::Down(1))
             })
             .collect::<Vec<String>>()
             .join("");
