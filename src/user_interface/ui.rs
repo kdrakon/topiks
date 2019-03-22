@@ -57,11 +57,12 @@ pub fn update_with_state(state: &State, screen: &mut impl Write) {
     screen.flush().unwrap(); // flush complete buffer to screen once
 }
 
-const HELP: [(&str, &str); 16] = [
+const HELP: [(&str, &str); 17] = [
     ("h", "Toggle this screen"),
     ("q", "Quit"),
-    ("p", "Toggle partitions"),
-    ("i", "Toggle topic config"),
+    ("t", "Toggle topics view"),
+    ("i", "Toggle topic config view"),
+    ("p", "Toggle partitions view"),
     ("/", "Enter search query for topic name"),
     ("n", "Find next search result"),
     ("r", "Refresh. Retrieves metadata from Kafka cluster"),

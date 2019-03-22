@@ -40,8 +40,9 @@ ARGS:
 ```
  h → Toggle this screen
  q → Quit
- p → Toggle partitions
- i → Toggle topic config
+ t → Toggle topics view
+ i → Toggle topic config view
+ p → Toggle partitions view
  / → Enter search query for topic name
  n → Find next search result
  r → Refresh. Retrieves metadata from Kafka cluster
