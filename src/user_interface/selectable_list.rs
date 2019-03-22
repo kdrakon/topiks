@@ -18,8 +18,7 @@ where
     A: SelectableListItem,
 {
     pub fn display(&self, screen: &mut impl Write, (start_x, start_y): (u16, u16), height: u16) {
-
-        let blank_items = vec![format!("{}{}", clear::CurrentLine, cursor::Down(1));  height as usize - self.list.len()].join("");
+        let blank_items = vec![format!("{}{}", clear::CurrentLine, cursor::Down(1)); height as usize - self.list.len()].join("");
 
         let list_items = self
             .list

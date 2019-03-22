@@ -523,30 +523,28 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             current_state.current_view = view;
             Ok(current_state.clone())
         }
-        SelectionUpdated(select_fn) => {
-            match select_fn(&current_state) {
-                Err(e) => Err(e),
-                Ok((CurrentView::HelpScreen, _)) => Ok(current_state.clone()),
-                Ok((CurrentView::Topics, selected_index)) => {
-                    current_state.selected_index = selected_index;
-                    Ok(current_state.clone())
-                }
-                Ok((CurrentView::Partitions, selected_index)) => {
-                    current_state.partition_info_state = current_state.partition_info_state.as_mut().map(|state| {
-                        state.selected_index = selected_index;
-                        state.clone()
-                    });
-                    Ok(current_state.clone())
-                }
-                Ok((CurrentView::TopicInfo, selected_index)) => {
-                    current_state.topic_info_state = current_state.topic_info_state.as_mut().map(|state| {
-                        state.selected_index = selected_index;
-                        state.clone()
-                    });
-                    Ok(current_state.clone())
-                }
+        SelectionUpdated(select_fn) => match select_fn(&current_state) {
+            Err(e) => Err(e),
+            Ok((CurrentView::HelpScreen, _)) => Ok(current_state.clone()),
+            Ok((CurrentView::Topics, selected_index)) => {
+                current_state.selected_index = selected_index;
+                Ok(current_state.clone())
             }
-        }
+            Ok((CurrentView::Partitions, selected_index)) => {
+                current_state.partition_info_state = current_state.partition_info_state.as_mut().map(|state| {
+                    state.selected_index = selected_index;
+                    state.clone()
+                });
+                Ok(current_state.clone())
+            }
+            Ok((CurrentView::TopicInfo, selected_index)) => {
+                current_state.topic_info_state = current_state.topic_info_state.as_mut().map(|state| {
+                    state.selected_index = selected_index;
+                    state.clone()
+                });
+                Ok(current_state.clone())
+            }
+        },
         TopicQuerySet(query) => {
             current_state.topic_name_query = query;
             Ok(current_state.clone())

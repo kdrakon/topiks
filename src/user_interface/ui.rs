@@ -93,7 +93,7 @@ fn show_dialog_header(screen: &mut impl Write, width: u16, metadata: &MetadataRe
     };
 
     if let Some(dialog) = dialog {
-        write!(screen, "{}{}{}{}", cursor::Goto(1, 1), color::Fg(color::Black), dialog, style::Reset).unwrap();
+        write!(screen, "{}{}{}{}", cursor::Goto(1, 1), clear::CurrentLine, dialog, style::Reset).unwrap();
     }
 }
 
@@ -136,12 +136,7 @@ fn show_topics(
     }
 }
 
-fn show_topic_partitions(
-    screen: &mut impl Write,
-    height: u16,
-    (start_x, start_y): (u16, u16),
-    partition_info_state: &PartitionInfoState,
-) {
+fn show_topic_partitions(screen: &mut impl Write, height: u16, (start_x, start_y): (u16, u16), partition_info_state: &PartitionInfoState) {
     use user_interface::selectable_list::PartitionListItem::*;
 
     let paged = PagedVec::from(&partition_info_state.partition_metadata, height as usize);
