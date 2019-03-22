@@ -199,6 +199,11 @@ fn main() -> Result<(), u8> {
                 Key::End => {
                     sender.send(Message::Select(Bottom)).unwrap();
                 }
+                Key::Char('t') => {
+                    sender.send(Message::DisplayUIMessage(DialogMessage::None)).unwrap();
+                    sender.send(Message::ToggleView(CurrentView::Topics)).unwrap();
+                    sender.send(Message::GetMetadata(bootstrap_server(), consumer_group.clone())).unwrap();
+                }
                 Key::Char('i') => {
                     sender.send(Message::DisplayUIMessage(DialogMessage::None)).unwrap();
                     sender.send(Message::ToggleView(CurrentView::TopicInfo)).unwrap();

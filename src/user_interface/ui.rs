@@ -27,6 +27,10 @@ use util::utils::pad_right;
 pub fn update_with_state(state: &State, screen: &mut impl Write) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
 
+    if state.clear_view {
+        write!(screen, "{}", clear::All).unwrap();
+    }
+
     if let Some(ref metadata) = state.metadata {
         show_dialog_header(screen, width, metadata, &state.dialog_message);
 

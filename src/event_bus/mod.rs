@@ -520,46 +520,37 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             }
         }),
         ViewToggled(view) => {
-            let new_view = match view {
-                CurrentView::Topics => CurrentView::Topics,
-                CurrentView::Partitions => match current_state.current_view {
-                    CurrentView::Partitions => CurrentView::Topics,
-                    _ => CurrentView::Partitions,
-                },
-                CurrentView::TopicInfo => match current_state.current_view {
-                    CurrentView::TopicInfo => CurrentView::Topics,
-                    _ => CurrentView::TopicInfo,
-                },
-                CurrentView::HelpScreen => match current_state.current_view {
-                    CurrentView::HelpScreen => CurrentView::Topics,
-                    _ => CurrentView::HelpScreen,
-                },
-            };
-            current_state.current_view = new_view;
+            if current_state.current_view != view {
+                current_state.clear_view = true;
+                current_state.current_view = view;
+            }
             Ok(current_state.clone())
         }
-        SelectionUpdated(select_fn) => match select_fn(&current_state) {
-            Err(e) => Err(e),
-            Ok((CurrentView::HelpScreen, _)) => Ok(current_state.clone()),
-            Ok((CurrentView::Topics, selected_index)) => {
-                current_state.selected_index = selected_index;
-                Ok(current_state.clone())
+        SelectionUpdated(select_fn) => {
+            current_state.clear_view = false; // stop clearing the screen since the cursor has moved
+            match select_fn(&current_state) {
+                Err(e) => Err(e),
+                Ok((CurrentView::HelpScreen, _)) => Ok(current_state.clone()),
+                Ok((CurrentView::Topics, selected_index)) => {
+                    current_state.selected_index = selected_index;
+                    Ok(current_state.clone())
+                }
+                Ok((CurrentView::Partitions, selected_index)) => {
+                    current_state.partition_info_state = current_state.partition_info_state.as_mut().map(|state| {
+                        state.selected_index = selected_index;
+                        state.clone()
+                    });
+                    Ok(current_state.clone())
+                }
+                Ok((CurrentView::TopicInfo, selected_index)) => {
+                    current_state.topic_info_state = current_state.topic_info_state.as_mut().map(|state| {
+                        state.selected_index = selected_index;
+                        state.clone()
+                    });
+                    Ok(current_state.clone())
+                }
             }
-            Ok((CurrentView::Partitions, selected_index)) => {
-                current_state.partition_info_state = current_state.partition_info_state.as_mut().map(|state| {
-                    state.selected_index = selected_index;
-                    state.clone()
-                });
-                Ok(current_state.clone())
-            }
-            Ok((CurrentView::TopicInfo, selected_index)) => {
-                current_state.topic_info_state = current_state.topic_info_state.as_mut().map(|state| {
-                    state.selected_index = selected_index;
-                    state.clone()
-                });
-                Ok(current_state.clone())
-            }
-        },
+        }
         TopicQuerySet(query) => {
             current_state.topic_name_query = query;
             Ok(current_state.clone())
