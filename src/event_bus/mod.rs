@@ -520,14 +520,10 @@ fn update_state(event: Event, mut current_state: RefMut<State>) -> Result<State,
             }
         }),
         ViewToggled(view) => {
-            if current_state.current_view != view {
-                current_state.clear_view = true;
-                current_state.current_view = view;
-            }
+            current_state.current_view = view;
             Ok(current_state.clone())
         }
         SelectionUpdated(select_fn) => {
-            current_state.clear_view = false; // stop clearing the screen since the cursor has moved
             match select_fn(&current_state) {
                 Err(e) => Err(e),
                 Ok((CurrentView::HelpScreen, _)) => Ok(current_state.clone()),

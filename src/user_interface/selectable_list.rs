@@ -17,7 +17,10 @@ impl<A> SelectableList<A>
 where
     A: SelectableListItem,
 {
-    pub fn display(&self, screen: &mut impl Write, (start_x, start_y): (u16, u16), width: u16) {
+    pub fn display(&self, screen: &mut impl Write, (start_x, start_y): (u16, u16), height: u16) {
+
+        let blank_items = vec![format!("{}{}", clear::CurrentLine, cursor::Down(1));  height as usize - self.list.len()].join("");
+
         let list_items = self
             .list
             .iter()
@@ -30,10 +33,11 @@ where
 
         write!(
             screen,
-            "{cursor_to_start}{style_reset}{list_items}{cursor_to_start}{style_reset}",
+            "{cursor_to_start}{style_reset}{list_items}{blank_items}{style_reset}",
             cursor_to_start = cursor::Goto(start_x, start_y),
             style_reset = style::Reset,
-            list_items = list_items
+            list_items = list_items,
+            blank_items = blank_items
         )
         .unwrap();
     }

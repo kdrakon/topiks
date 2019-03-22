@@ -27,20 +27,16 @@ use util::utils::pad_right;
 pub fn update_with_state(state: &State, screen: &mut impl Write) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
 
-    if state.clear_view {
-        write!(screen, "{}", clear::All).unwrap();
-    }
-
     if let Some(ref metadata) = state.metadata {
         show_dialog_header(screen, width, metadata, &state.dialog_message);
 
         match state.current_view {
             CurrentView::Topics => {
-                show_topics(screen, (width, height - 2), (1, 2), metadata, state.selected_index, &state.marked_deleted);
+                show_topics(screen, height - 2, (1, 2), metadata, state.selected_index, &state.marked_deleted);
             }
             CurrentView::Partitions => {
                 if let Some(partition_info_state) = state.partition_info_state.as_ref() {
-                    show_topic_partitions(screen, (width, height - 2), (1, 2), partition_info_state);
+                    show_topic_partitions(screen, height - 2, (1, 2), partition_info_state);
                 }
             }
             CurrentView::TopicInfo => {
@@ -103,7 +99,7 @@ fn show_dialog_header(screen: &mut impl Write, width: u16, metadata: &MetadataRe
 
 fn show_topics(
     screen: &mut impl Write,
-    (width, height): (u16, u16),
+    height: u16,
     (start_x, start_y): (u16, u16),
     metadata: &MetadataResponse,
     selected_index: usize,
@@ -136,13 +132,13 @@ fn show_topics(
             })
             .collect::<Vec<TopicListItem>>();
 
-        (SelectableList { list: list_items }).display(screen, (start_x, start_y), width);
+        (SelectableList { list: list_items }).display(screen, (start_x, start_y), height);
     }
 }
 
 fn show_topic_partitions(
     screen: &mut impl Write,
-    (width, height): (u16, u16),
+    height: u16,
     (start_x, start_y): (u16, u16),
     partition_info_state: &PartitionInfoState,
 ) {
@@ -168,7 +164,7 @@ fn show_topic_partitions(
             })
             .collect::<Vec<PartitionListItem>>();
 
-        (SelectableList { list: list_items }).display(screen, (start_x, start_y), width);
+        (SelectableList { list: list_items }).display(screen, (start_x, start_y), height);
     }
 }
 
@@ -209,7 +205,7 @@ fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_
             })
             .collect::<Vec<TopicConfigurationItem>>();
 
-        (SelectableList { list: list_items }).display(screen, (start_x, start_y + 3), width);
+        (SelectableList { list: list_items }).display(screen, (start_x, start_y + 3), height);
     }
 }
 
