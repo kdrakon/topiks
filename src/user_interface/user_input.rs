@@ -4,8 +4,8 @@ use std::sync::mpsc::Sender;
 use termion::event::Key;
 use termion::input::TermRead;
 
-use event_bus::Message;
-use event_bus::Message::UserInput;
+use crate::event_bus::Message;
+use crate::event_bus::Message::UserInput;
 
 pub fn read(label: &str, (_cursor_x, _cursor_y): (u16, u16), sender: Sender<Message>) -> Result<Option<String>, ()> {
     let stdin = std::io::stdin();

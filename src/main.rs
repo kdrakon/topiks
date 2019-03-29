@@ -1,20 +1,7 @@
-extern crate clap;
-extern crate regex;
-extern crate termion;
-extern crate topiks_kafka_client;
-
 use std::env;
 use std::io::stdin;
 
-use api_client::ApiClient;
-use api_client::ApiClientTrait;
-use api_client::ApiRequestError;
 use clap::{App, Arg};
-use kafka_protocol::protocol_request::*;
-use kafka_protocol::protocol_requests::findcoordinator_request::CoordinatorType;
-use kafka_protocol::protocol_requests::findcoordinator_request::FindCoordinatorRequest;
-use kafka_protocol::protocol_response::*;
-use kafka_protocol::protocol_responses::findcoordinator_response::FindCoordinatorResponse;
 use regex::Regex;
 use termion::event::Key;
 use termion::input::TermRead;
@@ -23,14 +10,22 @@ use termion::screen::AlternateScreen;
 use termion::terminal_size;
 use topiks_kafka_client::*;
 
-use event_bus::ConsumerGroup;
-use event_bus::Creation;
-use event_bus::Message;
-use event_bus::MoveSelection::*;
-use event_bus::TopicQuery::*;
-use state::CurrentView;
-use state::DialogMessage;
-use user_interface::user_input;
+use crate::api_client::ApiClient;
+use crate::api_client::ApiClientTrait;
+use crate::api_client::ApiRequestError;
+use crate::event_bus::ConsumerGroup;
+use crate::event_bus::Creation;
+use crate::event_bus::Message;
+use crate::event_bus::MoveSelection::*;
+use crate::event_bus::TopicQuery::*;
+use crate::kafka_protocol::protocol_request::*;
+use crate::kafka_protocol::protocol_requests::findcoordinator_request::CoordinatorType;
+use crate::kafka_protocol::protocol_requests::findcoordinator_request::FindCoordinatorRequest;
+use crate::kafka_protocol::protocol_response::*;
+use crate::kafka_protocol::protocol_responses::findcoordinator_response::FindCoordinatorResponse;
+use crate::state::CurrentView;
+use crate::state::DialogMessage;
+use crate::user_interface::user_input;
 
 pub mod error_codes;
 pub mod event_bus;

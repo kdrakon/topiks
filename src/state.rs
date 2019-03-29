@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 
-use kafka_protocol::protocol_responses::describeconfigs_response::Resource;
-use kafka_protocol::protocol_responses::listoffsets_response;
-use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
-use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
-use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
-use kafka_protocol::protocol_responses::offsetfetch_response;
-use state::CurrentView::*;
+use crate::kafka_protocol::protocol_responses::describeconfigs_response::Resource;
+use crate::kafka_protocol::protocol_responses::listoffsets_response;
+use crate::kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
+use crate::kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
+use crate::kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
+use crate::kafka_protocol::protocol_responses::offsetfetch_response;
+use crate::state::CurrentView::*;
 
 #[derive(Clone)]
 pub struct State {

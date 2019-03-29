@@ -2,9 +2,9 @@ use std::io::Write;
 
 use termion::{clear, color, cursor, style};
 
-use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
-use user_interface::offset_progress_bar;
-use util::utils::VecToCSV;
+use crate::kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
+use crate::user_interface::offset_progress_bar;
+use crate::util::utils::VecToCSV;
 
 pub struct SelectableList<A>
 where

@@ -6,23 +6,23 @@ use termion::cursor;
 use termion::style;
 use termion::terminal_size;
 
-use kafka_protocol::protocol_responses::describeconfigs_response::ConfigEntry;
-use kafka_protocol::protocol_responses::describeconfigs_response::ConfigSource;
-use kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
-use kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
-use kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
-use state::CurrentView;
-use state::DialogMessage;
-use state::PartitionInfoState;
-use state::State;
-use state::TopicInfoState;
-use user_interface::selectable_list::PartitionListItem;
-use user_interface::selectable_list::SelectableList;
-use user_interface::selectable_list::TopicConfigurationItem;
-use user_interface::selectable_list::TopicListItem;
-use util::paged_vec::PagedVec;
-use util::utils;
-use util::utils::pad_right;
+use crate::kafka_protocol::protocol_responses::describeconfigs_response::ConfigEntry;
+use crate::kafka_protocol::protocol_responses::describeconfigs_response::ConfigSource;
+use crate::kafka_protocol::protocol_responses::metadata_response::MetadataResponse;
+use crate::kafka_protocol::protocol_responses::metadata_response::PartitionMetadata;
+use crate::kafka_protocol::protocol_responses::metadata_response::TopicMetadata;
+use crate::state::CurrentView;
+use crate::state::DialogMessage;
+use crate::state::PartitionInfoState;
+use crate::state::State;
+use crate::state::TopicInfoState;
+use crate::user_interface::selectable_list::PartitionListItem;
+use crate::user_interface::selectable_list::SelectableList;
+use crate::user_interface::selectable_list::TopicConfigurationItem;
+use crate::user_interface::selectable_list::TopicListItem;
+use crate::util::paged_vec::PagedVec;
+use crate::util::utils;
+use crate::util::utils::pad_right;
 
 pub fn update_with_state(state: &State, screen: &mut impl Write) {
     let (width, height): (u16, u16) = terminal_size().unwrap();
@@ -105,7 +105,7 @@ fn show_topics(
     selected_index: usize,
     marked_deleted: &Vec<String>,
 ) {
-    use user_interface::selectable_list::TopicListItem::*;
+    use crate::user_interface::selectable_list::TopicListItem::*;
 
     let paged = PagedVec::from(&metadata.topic_metadata, height as usize);
 
@@ -137,7 +137,7 @@ fn show_topics(
 }
 
 fn show_topic_partitions(screen: &mut impl Write, height: u16, (start_x, start_y): (u16, u16), partition_info_state: &PartitionInfoState) {
-    use user_interface::selectable_list::PartitionListItem::*;
+    use crate::user_interface::selectable_list::PartitionListItem::*;
 
     let paged = PagedVec::from(&partition_info_state.partition_metadata, height as usize);
 
@@ -164,7 +164,7 @@ fn show_topic_partitions(screen: &mut impl Write, height: u16, (start_x, start_y
 }
 
 fn show_topic_info(screen: &mut impl Write, (width, height): (u16, u16), (start_x, start_y): (u16, u16), topic_info: &TopicInfoState) {
-    use user_interface::selectable_list::TopicConfigurationItem::*;
+    use crate::user_interface::selectable_list::TopicConfigurationItem::*;
 
     let ref topic_metadata = topic_info.topic_metadata;
     let ref config_resource = topic_info.config_resource;

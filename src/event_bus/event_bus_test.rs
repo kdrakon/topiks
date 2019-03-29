@@ -1,21 +1,21 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use api_client::ApiClientProvider;
-use api_client::ApiClientTrait;
-use api_client::ApiRequestError;
-use kafka_protocol::protocol_request::Request;
-use kafka_protocol::protocol_response::Response;
-use kafka_protocol::protocol_serializable::ProtocolDeserializable;
-use kafka_protocol::protocol_serializable::ProtocolSerializable;
-use KafkaServerAddr;
-use IO;
+use crate::api_client::ApiClientProvider;
+use crate::api_client::ApiClientTrait;
+use crate::api_client::ApiRequestError;
+use crate::kafka_protocol::protocol_request::Request;
+use crate::kafka_protocol::protocol_response::Response;
+use crate::kafka_protocol::protocol_serializable::ProtocolDeserializable;
+use crate::kafka_protocol::protocol_serializable::ProtocolSerializable;
+use crate::KafkaServerAddr;
+use crate::IO;
 
-use event_bus;
-use event_bus::*;
-use state::State;
-use state::StateFNError;
-use state::{CurrentView, DialogMessage};
+use crate::event_bus;
+use crate::event_bus::*;
+use crate::state::State;
+use crate::state::StateFNError;
+use crate::state::{CurrentView, DialogMessage};
 
 struct FakeApiClient(HashMap<i16, Vec<u8>>); // ApiKey => Byte Response
 

@@ -6,6 +6,7 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/kdrakon/topiks"
 keywords = ["cli", "kafka"]
+edition = "2018"
 
 [profile.release]
 lto = true
