@@ -1,6 +1,6 @@
 [package]
 name = "topiks"
-version = "0.1.0-alpha+002"
+version = "0.1.0-alpha+003"
 authors = ["Sean Policarpio <sean@policarp.io>"]
 license = "MIT"
 readme = "README.md"
@@ -14,7 +14,7 @@ panic = 'abort'
 
 [dependencies.topiks-kafka-client]
 git = "https://github.com/kdrakon/topiks-kafka-client"
-tag = "0.1.0-alpha+002"
+tag = "0.1.0-alpha+003"
 
 [dependencies]
 termion = "1.5.1"
